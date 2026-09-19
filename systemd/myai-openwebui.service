@@ -1,0 +1,17 @@
+[Unit]
+Description=Open WebUI (myai)
+After=myai-ollama.service
+Wants=myai-ollama.service
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/.open-webui
+ExecStart=__HOME__/.open-webui/venv/bin/open-webui serve --host 0.0.0.0 --port 8080
+Environment="DATA_DIR=__HOME__/.open-webui"
+Environment="OLLAMA_BASE_URL=http://127.0.0.1:11434"
+Environment="WEBUI_AUTH=True"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,7 +1,9 @@
-# myai — a local AI stack for Apple Silicon
+# myai — a local AI stack for macOS and Linux
 
-A complete, self-hosted AI setup that runs on a single Mac: chat, code, vision, image
-generation, speech synthesis and transcription. Nothing is sent to a provider.
+A complete, self-hosted AI setup that runs on a single machine: chat, code, vision,
+image generation, speech synthesis and transcription. Nothing is sent to a provider.
+
+Runs on **macOS** (launchd, Metal) and **Linux** (systemd, CUDA) — same commands on both.
 
 One command starts everything and opens the browser. One command stops everything, clears
 residual processes and stays stopped across reboots.
@@ -24,7 +26,7 @@ myai start     myai stop     myai status     myai logs     myai backup
 
 Suggested models — swap freely, these are what the defaults assume:
 
-| Model | Size | Role | Measured (M5, 32 GB) |
+| Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
 | `qwen3:30b-a3b` | 18 GB | Chat, reasoning, web search | 50.9 tok/s |
 | `qwen2.5-coder:14b` | 9 GB | Code | 14.1 tok/s |
@@ -37,6 +39,8 @@ Suggested models — swap freely, these are what the defaults assume:
 
 ## Requirements
 
+### macOS
+
 - **Apple Silicon Mac.** Tested on M5; any M-series works.
 - **32 GB unified memory recommended.** 16 GB works if you drop the 30B model and use a 14B or smaller.
 - **~40 GB free disk** for all models above.
@@ -44,9 +48,19 @@ Suggested models — swap freely, these are what the defaults assume:
 
 > A fanless Mac (Air) throttles under sustained image generation. Chat is unaffected.
 
+### Linux
+
+- **NVIDIA GPU with CUDA** for usable image generation and faster inference. CPU-only works
+  for chat but SDXL becomes impractical.
+- **32 GB RAM recommended** (or 16 GB VRAM + 16 GB system).
+- **systemd** with user units — every mainstream distro.
+- Python 3.11 is fetched by `uv`; no system Python is touched.
+
 ---
 
-## Install
+---
+
+## Install — macOS
 
 ### 1. Ollama and the models
 
@@ -140,6 +154,117 @@ Or set them by hand in the UI — the script just automates what's described in
 
 ---
 
+## Install — Linux
+
+The same five components. Only the packaging and service manager differ.
+
+### 1. Ollama and the models
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+The installer creates a **system-wide** `ollama.service`. myai runs its own user unit instead,
+so disable that one or it will hold the port:
+
+```bash
+sudo systemctl disable --now ollama
+```
+
+Then pull the models — identical to macOS:
+
+```bash
+ollama pull qwen3:30b-a3b
+ollama pull qwen2.5-coder:14b
+ollama pull qwen2.5vl:7b
+ollama pull qwen2.5:3b
+ollama pull nomic-embed-text
+```
+
+### 2. Open WebUI
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh     # if you do not have uv
+uv python install 3.11
+
+mkdir -p ~/.open-webui/logs
+uv venv --python 3.11 ~/.open-webui/venv
+VIRTUAL_ENV="$HOME/.open-webui/venv" uv pip install open-webui
+```
+
+### 3. ComfyUI and SDXL
+
+```bash
+git clone https://github.com/comfyanonymous/ComfyUI.git ~/ComfyUI
+cd ~/ComfyUI && git checkout v0.36.0
+mkdir -p logs models/checkpoints
+
+uv venv --python 3.12 venv
+# CUDA build — check https://pytorch.org for the index matching your driver
+VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/cu124
+VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install -r requirements.txt
+
+curl -L -o models/checkpoints/sd_xl_base_1.0.safetensors \
+  "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+```
+
+Verify CUDA is visible — must print `True`:
+
+```bash
+~/ComfyUI/venv/bin/python -c "import torch; print(torch.cuda.is_available())"
+```
+
+> On macOS the equivalent check is `torch.backends.mps.is_available()`. The service file
+> passes `--highvram` on both platforms.
+
+### 4. Kokoro (text-to-speech)
+
+```bash
+sudo apt install espeak-ng          # or: dnf install espeak-ng / pacman -S espeak-ng
+
+git clone https://github.com/remsky/Kokoro-FastAPI.git ~/kokoro
+cd ~/kokoro && git checkout v0.9.0 && mkdir -p logs
+
+uv venv --python 3.12 venv
+VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
+./venv/bin/python docker/scripts/download_model.py --output api/src/models/v1_0
+```
+
+### 5. Install myai and the service units
+
+```bash
+./install.sh                         # detects Linux, writes systemd user units
+sudo loginctl enable-linger $USER    # so services survive logout and start at boot
+```
+
+Without lingering, systemd user units stop when your last session ends and do not start at
+boot. This is the Linux equivalent of launchd agents loading at login.
+
+### 6. Configure Open WebUI
+
+```bash
+myai start
+./scripts/configure.sh
+```
+
+---
+
+## Platform differences at a glance
+
+| | macOS | Linux |
+|---|---|---|
+| Service manager | launchd agents | systemd user units |
+| Ollama supervised by | `brew services` | `myai-ollama.service` |
+| GPU backend | Metal (MPS) | CUDA |
+| Persist across reboot | `launchctl enable/disable` | `systemctl --user enable/disable` + linger |
+| Logs | files under each component | `journalctl --user -u myai-*` |
+| Browser open | `open` | `xdg-open` |
+
+`myai` detects the platform and uses the right mechanism; the commands are identical on both.
+
+---
+
 ## Configuration
 
 These are the settings that matter. The defaults are wrong for a memory-constrained machine.
@@ -156,15 +281,20 @@ model. On a 32 GB machine this forces everything else into swap.
 
 ### Model unload timeout
 
+Models sit in RAM for **5 minutes** after use by default. On a memory-constrained machine
+that is most of your RAM, held for nothing.
+
+**macOS** — `myai start` sets this for you:
 ```bash
 launchctl setenv OLLAMA_KEEP_ALIVE 60s
 brew services restart ollama
 ```
 
-Models sit in RAM for **5 minutes** after use by default. `myai start` sets this for you.
-
 > Don't put it in Homebrew's plist — `brew services` regenerates that file from its formula
 > on every start and silently drops hand-added keys.
+
+**Linux** — already set in `myai-ollama.service` as `Environment="OLLAMA_KEEP_ALIVE=60s"`.
+Change it there and `systemctl --user daemon-reload`.
 
 ### ComfyUI: keep the model resident
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=ComfyUI (myai)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/ComfyUI
+# --highvram keeps the checkpoint resident between renders; without it ComfyUI
+# reloads several GB from disk on every single image.
+ExecStart=__HOME__/ComfyUI/venv/bin/python __HOME__/ComfyUI/main.py --listen 127.0.0.1 --port 8188 --highvram
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

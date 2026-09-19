@@ -1,0 +1,18 @@
+[Unit]
+Description=Kokoro TTS (myai)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/kokoro
+ExecStart=__HOME__/kokoro/venv/bin/python -m uvicorn api.src.main:app --host 127.0.0.1 --port 8880
+# The upstream project is Docker-first and hardcodes container paths; these
+# overrides are what make a native install work.
+Environment="PYTHONPATH=__HOME__/kokoro"
+Environment="MODEL_DIR=__HOME__/kokoro/api/src/models"
+Environment="VOICES_DIR=__HOME__/kokoro/api/src/voices/v1_0"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
