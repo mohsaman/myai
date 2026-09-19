@@ -126,16 +126,19 @@ try_("embeddings -> " + os.environ["EMBED_MODEL"], embed)
 #    models stop erroring. Only the chat and vision models need it.
 import urllib.parse
 
+# id, display name, use shown in parentheses, vision, legacy function calling, hidden
+# hidden=True keeps a model out of the chat dropdown. The embedding model is only
+# ever called by the retrieval pipeline (which resolves it against Ollama by name,
+# independently of this list), so it is noise in a chat model picker.
 MODELS = [
-    # id,                        display name,             use shown in parentheses
-    (os.environ["CHAT_MODEL"],   "Qwen3 30B",        "general chat + web search",                 False, True),
-    (os.environ["VISION_MODEL"], "Qwen2.5-VL 7B",    "vision \u2014 reads images",                  True,  True),
-    (os.environ["CODE_MODEL"],   "Qwen2.5 Coder 14B","writing & reviewing code",                  False, False),
-    (os.environ["TASK_MODEL"],   "Qwen2.5 3B",       "fast \u2014 titles, tags, background tasks",  False, False),
-    (os.environ["EMBED_MODEL"],  "Nomic Embed",      "embeddings \u2014 not for chat",              False, False),
+    (os.environ["CHAT_MODEL"],   "Qwen3 30B",        "general chat + web search",                 False, True,  False),
+    (os.environ["VISION_MODEL"], "Qwen2.5-VL 7B",    "vision \u2014 reads images",                  True,  True,  False),
+    (os.environ["CODE_MODEL"],   "Qwen2.5 Coder 14B","writing & reviewing code",                  False, False, False),
+    (os.environ["TASK_MODEL"],   "Qwen2.5 3B",       "fast \u2014 titles, tags, background tasks",  False, False, False),
+    (os.environ["EMBED_MODEL"],  "Nomic Embed",      "embeddings \u2014 not for chat",              False, False, True),
 ]
 
-def setup(model_id, label, suffix, vision, legacy):
+def setup(model_id, label, suffix, vision, legacy, hidden):
     payload = {
         "id": model_id,
         "name": f"{label} ({suffix})",
@@ -151,10 +154,16 @@ def setup(model_id, label, suffix, vision, legacy):
             call("/api/v1/models/model/update?id=" + urllib.parse.quote(model_id, safe=""), payload)
         else:
             raise
+    # create/update always leaves the model active, so toggle runs after it and
+    # the result is the same whether this script runs once or many times.
+    if hidden:
+        enc = urllib.parse.quote(model_id, safe="")
+        if call(f"/api/v1/models/model?id={enc}").get("is_active"):
+            call(f"/api/v1/models/model/toggle?id={enc}", {})
 
-for mid, label, suffix, vis, leg in MODELS:
-    try_(f"{mid} -> {label} ({suffix})",
-         lambda a=mid, b=label, c=suffix, d=vis, e=leg: setup(a, b, c, d, e))
+for mid, label, suffix, vis, leg, hid in MODELS:
+    try_(f"{mid} -> {label} ({suffix})" + ("  [hidden]" if hid else ""),
+         lambda a=mid, b=label, c=suffix, d=vis, e=leg, f=hid: setup(a, b, c, d, e, f))
 PY
 
 echo
