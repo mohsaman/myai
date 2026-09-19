@@ -31,6 +31,12 @@ JUPYTER_URL="http://127.0.0.1:8888"
 MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
 OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-60s}"
+# Context window. The KV cache for this must fit in GPU memory beside the weights
+# or inference silently spills to the CPU. 32768 keeps a 30B MoE at ~19.5 GB on a
+# 32 GB machine; 65536 pushes it to 21 GB, which swaps once a browser is open.
+OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
+OLLAMA_FLASH_ATTENTION="${OLLAMA_FLASH_ATTENTION:-1}"
+OLLAMA_KV_CACHE_TYPE="${OLLAMA_KV_CACHE_TYPE:-q8_0}"
 READY_TIMEOUT=120
 STOP_TIMEOUT=30
 
@@ -90,7 +96,13 @@ svc_installed() {  # svc_installed <service>
 svc_up() {  # svc_up <service>  — enable persistently, then start
   if [ "$OS" = mac ]; then
     if [ "$1" = "$SVC_OLLAMA" ]; then
-      launchctl setenv OLLAMA_KEEP_ALIVE "$OLLAMA_KEEP_ALIVE" 2>/dev/null
+      # 'brew services start' regenerates its own plist from the formula's
+      # template every time, discarding anything added to the copy in
+      # ~/Library/LaunchAgents. launchctl setenv is what actually survives —
+      # and it survives 'brew upgrade ollama' too.
+      for v in OLLAMA_KEEP_ALIVE OLLAMA_CONTEXT_LENGTH OLLAMA_FLASH_ATTENTION OLLAMA_KV_CACHE_TYPE; do
+        launchctl setenv "$v" "${!v}" 2>/dev/null   # ${!v} = value of the named var
+      done
       brew services start ollama >/dev/null 2>&1
     else
       launchctl enable "$GUI/$1" 2>/dev/null

@@ -491,11 +491,17 @@ mode `0600`, generated at install and never committed.
 ## Context length
 
 Ollama's default context is smaller than what modern models are trained for. `myai`
-sets it explicitly in the service definition:
+sets it when it starts the service:
 
 ```
-OLLAMA_CONTEXT_LENGTH=65536
+OLLAMA_CONTEXT_LENGTH=32768     # override in the environment to change it
 ```
+
+On macOS this is applied with `launchctl setenv`, not by editing the launch agent.
+`brew services start` regenerates its plist from the formula's template on every
+start, so anything added to `~/Library/LaunchAgents/sh.brew.ollama.plist` is
+discarded — and edits to the template in the Cellar are lost on `brew upgrade`.
+`launchctl setenv` survives both.
 
 Bigger is not automatically better — the KV cache has to fit in GPU memory alongside
 the weights, or inference silently spills to the CPU and slows to a crawl. Work out
@@ -506,9 +512,18 @@ KV bytes/token ≈ 2 × layers × kv_heads × head_dim     (1 byte/element at q8
 ```
 
 For a 30B MoE with 48 layers, 4 KV heads and head_dim 128, that is 48 KiB per token —
-so 64k costs 3 GB of cache on top of ~20 GB of weights. On a 32 GB Mac the GPU limit
-is roughly 24 GB, which 64k fits and 128k does not. Check with `ollama ps`: the
-`PROCESSOR` column must read `100% GPU`.
+so 64k costs 3 GB of cache on top of ~20 GB of weights.
+
+`100% GPU` in `ollama ps` is necessary but not sufficient. On a 32 GB Mac a 30B model
+at 64k wires 21 GB, leaving about 2 GB once macOS, a browser and the rest of the stack
+are accounted for. Inference then allocates temporary buffers on top, macOS starts
+paging, and throughput collapses — measured here from 18 tok/s to 7, with prompt
+evaluation going from 23 s to 160 s for the same 6,300-token prompt. Nothing reports
+an error; `ollama ps` still says `100% GPU`.
+
+The tell is `sysctl vm.swapusage`. If swap is filling, the window is too large for the
+machine regardless of what fits in the GPU. 32k is the sustainable setting for a 30B
+model on 32 GB; a 20B model has room for far more.
 
 ---
 
