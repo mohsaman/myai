@@ -50,9 +50,18 @@ BREW_BIN="$(dirname "$(command -v brew 2>/dev/null || echo /opt/homebrew/bin/bre
 TZ_NAME="$(readlink /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||')"; TZ_NAME="${TZ_NAME:-UTC}"
 
 # the terminal server's code lives in the repo; install it next to its venv
-if [ -f "$HERE/terminal/server.py" ]; then
-  install -m 0644 "$HERE/terminal/server.py" "$HOME/terminal/server.py"
-  ok "installed $HOME/terminal/server.py"
+for f in server.py server-ssh.py; do
+  [ -f "$HERE/terminal/$f" ] || continue
+  install -m 0644 "$HERE/terminal/$f" "$HOME/terminal/$f"
+  ok "installed $HOME/terminal/$f"
+done
+# uvicorn imports by module name, which cannot contain a hyphen.
+[ -f "$HOME/terminal/server-ssh.py" ] && ln -sf server-ssh.py "$HOME/terminal/server_ssh.py"
+
+# host list: the template ships, the real one is yours and stays out of git
+if [ ! -f "$HOME/terminal/hosts.json" ] && [ -f "$HERE/terminal/hosts.json.example" ]; then
+  install -m 0600 "$HERE/terminal/hosts.json.example" "$HOME/terminal/hosts.json"
+  ok "wrote $HOME/terminal/hosts.json"
 fi
 
 # mcpo's server list — written once, then yours to edit

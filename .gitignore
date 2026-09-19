@@ -6,3 +6,5 @@
 .apikey
 mcpo/config.json
 mcpo/memory.json
+terminal/hosts.json
+terminal/server_ssh.py

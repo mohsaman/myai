@@ -303,6 +303,121 @@ cmd_backup() {
 }
 
 
+
+# --------------------------------------------------------------- terminal ---
+# Named SSH targets the terminal server may reach. The model picks a NAME from
+# this file and never supplies an address, so it cannot direct a connection.
+TERMINAL_HOSTS="$HOME/terminal/hosts.json"
+
+cmd_terminal() {
+  local sub="${1:-list}"; [ $# -gt 0 ] && shift
+  mkdir -p "$(dirname "$TERMINAL_HOSTS")"
+
+  case "$sub" in
+    list)
+      printf '%sTerminal targets%s\n' "$BOLD" "$OFF"
+      ok "local    this machine"
+      HOSTS="$TERMINAL_HOSTS" python3 <<'PYLIST'
+import json, os
+try:
+    hosts = json.load(open(os.environ["HOSTS"]))
+except Exception:
+    hosts = {}
+hosts = {k: v for k, v in hosts.items() if not k.startswith("_") and isinstance(v, dict)}
+if not hosts:
+    print("  \033[2m•\033[0m no remote hosts — myai terminal add <name> <user@host>")
+for name, h in sorted(hosts.items()):
+    dest = f"{h['user']}@{h['host']}" if h.get("user") else h.get("host", "?")
+    bits = [dest]
+    if h.get("port"): bits.append(f"port {h['port']}")
+    if h.get("jump"): bits.append(f"via {h['jump']}")
+    print(f"  \033[32m✓\033[0m {name:<8} {' · '.join(bits)}")
+PYLIST
+      ;;
+    add)
+      local name="${1:-}" dest="${2:-}"; shift 2 2>/dev/null || true
+      if [ -z "$name" ] || [ -z "$dest" ]; then
+        bad "usage: myai terminal add <name> <[user@]host> [--port N] [--key PATH] [--jump host]"; return 1
+      fi
+      local port='' key='' jump=''
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --port) port="$2"; shift 2 ;;
+          --key)  key="$2";  shift 2 ;;
+          --jump) jump="$2"; shift 2 ;;
+          *) bad "unknown option: $1"; return 1 ;;
+        esac
+      done
+      HOSTS="$TERMINAL_HOSTS" NAME="$name" DEST="$dest" PORT="$port" KEY="$key" JUMP="$jump" \
+        python3 <<'PYADD'
+import json, os
+path = os.environ["HOSTS"]
+try:
+    hosts = json.load(open(path))
+except Exception:
+    hosts = {}
+dest = os.environ["DEST"]
+user, _, host = dest.rpartition("@")
+entry = {"host": host}
+if user: entry["user"] = user
+for env, key in (("PORT", "port"), ("KEY", "key"), ("JUMP", "jump")):
+    if os.environ.get(env): entry[key] = os.environ[env]
+hosts[os.environ["NAME"]] = entry
+with open(path, "w") as fh:
+    json.dump(hosts, fh, indent=2, sort_keys=True); fh.write("\n")
+os.chmod(path, 0o600)
+print(f"  added {os.environ['NAME']} -> {dest}")
+PYADD
+      info "check it:  myai terminal test $name"
+      ;;
+    remove|rm)
+      local name="${1:-}"
+      [ -z "$name" ] && { bad "usage: myai terminal remove <name>"; return 1; }
+      HOSTS="$TERMINAL_HOSTS" NAME="$name" python3 <<'PYRM'
+import json, os
+path = os.environ["HOSTS"]
+try:
+    hosts = json.load(open(path))
+except Exception:
+    hosts = {}
+if hosts.pop(os.environ["NAME"], None) is None:
+    print(f"  no such target: {os.environ['NAME']}"); raise SystemExit(1)
+with open(path, "w") as fh:
+    json.dump(hosts, fh, indent=2, sort_keys=True); fh.write("\n")
+print(f"  removed {os.environ['NAME']}")
+PYRM
+      ;;
+    test)
+      local name="${1:-}"
+      [ -z "$name" ] && { bad "usage: myai terminal test <name>"; return 1; }
+      local args
+      args=$(HOSTS="$TERMINAL_HOSTS" NAME="$name" python3 <<'PYARGS'
+import json, os, shlex
+try:
+    hosts = json.load(open(os.environ["HOSTS"]))
+except Exception:
+    hosts = {}
+h = hosts.get(os.environ["NAME"])
+if not isinstance(h, dict) or not h.get("host"):
+    raise SystemExit(1)
+argv = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
+if h.get("port"): argv += ["-p", str(h["port"])]
+if h.get("key"):  argv += ["-i", os.path.expanduser(h["key"])]
+if h.get("jump"): argv += ["-J", h["jump"]]
+argv.append(f"{h['user']}@{h['host']}" if h.get("user") else h["host"])
+print(" ".join(shlex.quote(a) for a in argv))
+PYARGS
+      ) || { bad "no such target: $name"; return 1; }
+      info "ssh $args uname -sm"
+      # Runs as you, with your agent — not through the server.
+      if eval "ssh $args uname -sm" 2>&1 | sed 's/^/      /'; then ok "$name reachable"
+      else bad "$name unreachable — check the key is in ssh-agent and the jump host is right"; fi
+      ;;
+    *)
+      bad "unknown subcommand: $sub"; info "myai terminal [list|add|remove|test]"; return 1 ;;
+  esac
+}
+
 case "${1:-}" in
   start)   cmd_start ;;
   stop)    cmd_stop ;;
@@ -310,6 +425,7 @@ case "${1:-}" in
   status)  cmd_status ;;
   logs)    cmd_logs "${2:-}" ;;
   backup)  cmd_backup "${2:-}" ;;
+  terminal) shift; cmd_terminal "$@" ;;
   *)
     cat <<EOF
 ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
@@ -325,6 +441,11 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs mcpo    tail MCP tool server logs
   myai logs terminal tail terminal server logs
   myai backup [dir] back up chats/users/config (default ~/myai-backups)
+
+  myai terminal list                     show terminal targets
+  myai terminal add <name> <[user@]host> [--port N] [--key PATH] [--jump host]
+  myai terminal remove <name>
+  myai terminal test <name>              check it is reachable over ssh
 
 
 platform: $OS

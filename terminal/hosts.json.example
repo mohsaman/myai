@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Named SSH targets the terminal server may reach.",
+    "The model picks a NAME from this file and never supplies an address, so it",
+    "cannot be talked into connecting somewhere of its own choosing.",
+    "",
+    "Fields: host (required), user, port, key, jump.",
+    "  jump  -> ProxyJump, for a host reachable only through a bastion",
+    "  key   -> path to a private key; omit to use ssh-agent",
+    "",
+    "Keys must be loaded in ssh-agent or passphrase-free: the server connects",
+    "with BatchMode=yes and will fail rather than hang waiting for a prompt.",
+    "Entries whose name starts with _ are ignored.",
+    "",
+    "Example:",
+    "  \"nas\":  { \"host\": \"192.168.20.10\", \"user\": \"admin\" },",
+    "  \"edge\": { \"host\": \"10.0.0.5\", \"user\": \"ops\", \"port\": 2222,",
+    "             \"jump\": \"ops@bastion.example.net\" }"
+  ]
+}

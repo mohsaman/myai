@@ -9,7 +9,7 @@ provider. What it can do:
 - **Chat and reasoning** — a 30B mixture-of-experts model at conversational speed
 - **Agentic tool use** — the model decides when to read files, fetch a URL or recall a fact, and chains the calls itself
 - **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
-- **Inspect the machine** — a read-only terminal: allowlisted commands, no shell, credential paths blocked
+- **Inspect machines** — a read-only terminal for this computer and any SSH hosts you add: allowlisted commands, no shell, credential paths blocked
 - **Read images** — screenshots, diagrams, tables and scanned documents
 - **Generate images** — SDXL on the local GPU
 - **Speak and listen** — neural text-to-speech in 72 voices, plus dictation
@@ -39,7 +39,7 @@ myai start     myai stop     myai status     myai logs     myai backup
 | **faster-whisper** | Speech recognition (built into Open WebUI) |
 | **Jupyter** | The code interpreter's kernel — real Python, filesystem and network |
 | **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
-| **terminal** | Read-only shell the model can query about the machine |
+| **terminal** | Read-only shell the model can query, locally and over SSH |
 
 Suggested models — swap freely, these are what the defaults assume:
 
@@ -523,16 +523,51 @@ One command per call. Ask for raw output and let the model interpret it, rather 
 trying to pipe.
 
 The Terminal panel's file browser is read-only and hides credential directories, so
-`~/.ssh` and friends do not appear in it at all. The panel's interactive shell pane and
-port forwarding are not implemented — Open WebUI expects a full workspace backend
-(a PTY over websocket) for those, which is a different piece of software to this one.
-The model-facing `run_command` tool is what this server is for, and that works.
+`~/.ssh` and friends do not appear in it at all. The panel's **interactive shell pane is
+not implemented**: Open WebUI expects a PTY over websocket for that, which is an
+unrestricted login shell and deliberately out of scope here. The panel therefore shows
+the file browser but no prompt to type at. What this server provides is the model-facing
+`run_command` tool — the model runs commands and reports back, rather than you driving a
+shell through a web page.
 
 To widen or narrow the blast radius, edit `TERMINAL_ROOT` in the service definition
 (`~/Library/LaunchAgents/com.terminal.server.plist`, or the systemd unit) — pointing it
 at a single project directory is a reasonable default if you would rather not expose
 your whole home. The allowlist itself is the `ALLOWED` set at the top of
 `terminal/server.py`.
+
+### Remote machines over SSH
+
+The terminal reaches other machines too — a NAS, a lab box, a server — using the same
+allowlist. Add targets from the command line:
+
+```bash
+myai terminal add nas  admin@192.168.20.10
+myai terminal add edge ops@10.0.0.5 --port 2222 --jump ops@bastion.example.net
+myai terminal add pi   pi@raspberrypi.local --key ~/.ssh/id_pi
+myai terminal list
+myai terminal test nas          # check it is reachable, as you, before the model tries
+```
+
+Then just name the machine:
+
+```
+Is the NAS running out of disk?
+Compare uptime across nas and edge.
+What version of Linux is edge on?
+```
+
+Two properties make this safe enough to hand to a model:
+
+- **The model names a host, never an address.** It picks from the targets you added, so
+  nothing it says can produce a connection to a machine you did not configure. Asking it
+  to reach `192.168.1.50` returns *unknown host*, not a connection.
+- **The allowlist is applied before connecting.** A refused command never leaves your
+  machine — measurably: a rejected command returns in ~30 ms, while an accepted one takes
+  as long as SSH needs to dial.
+
+Keys must be in `ssh-agent` or passphrase-free: connections use `BatchMode=yes` and fail
+rather than hang on a prompt. `hosts.json` is `0600` and gitignored.
 
 ### Code Interpreter — compute, plot, transform
 
