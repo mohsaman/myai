@@ -439,7 +439,7 @@ them directly and chain several calls in one answer.
 | Server | Tools | What the model can do |
 |---|---|---|
 | `filesystem` | 14 | Read, write, move and search files under `~/ai-workspace` |
-| `fetch` | 1 | Retrieve a URL and read the page |
+| `fetch` | 1 | Retrieve a URL and read the page (sends a browser User-Agent) |
 | `memory` | 9 | Store and recall facts in a knowledge graph that survives between chats |
 | `time` | 2 | Current time, timezone conversion |
 
@@ -449,6 +449,32 @@ databases, ticketing systems, your own scripts.
 > The filesystem server is deliberately scoped to a single directory. Widening it to
 > `$HOME` gives any prompt — including text pulled in by a web search — the ability to
 > read every file you own. Scope it narrowly and on purpose.
+
+
+#### Fetching sites that block bots
+
+`mcp-server-fetch` identifies itself as a Python HTTP client by default, and a
+number of sites refuse that outright. Both fetch servers here are configured with
+a browser User-Agent, which is usually the whole fix:
+
+```
+"args": ["mcp-server-fetch", "--user-agent", "Mozilla/5.0 (…) Chrome/140.0.0.0 Safari/537.36"]
+```
+
+Worth knowing before you go further:
+
+- **Check `robots.txt` before reaching for `--ignore-robots-txt`.** It is a separate
+  gate from the User-Agent and usually is not the thing blocking you. 3gpp.org, for
+  instance, ships the stock Joomla file: it disallows `/administrator/` and `/cache/`
+  but not the spec archive, so a User-Agent alone is enough and the flag stays off.
+- **Getting a 200 does not mean you got the content.** Plenty of directory listings
+  are rendered by JavaScript, which this fetcher does not execute. 3gpp.org's
+  `/ftp/Specs/archive/24_series/` returns `209 items.` and nothing else. The
+  static equivalent, `/DynaReport/24-series.htm`, returns all 222 spec numbers.
+  When a page comes back suspiciously short, look for a static version of it.
+- **Mind the size.** A full series listing is ~160 KB, roughly 40k tokens. Against a
+  64k context that is two or three pages per session, not ten. Raise `max_length`
+  deliberately rather than by default.
 
 ### Code interpreter
 
