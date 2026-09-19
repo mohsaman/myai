@@ -5,7 +5,7 @@
 #   myai stop         stop everything (stays stopped across reboots)
 #   myai restart      stop then start
 #   myai status       show what is running
-#   myai logs [comfy|kokoro|jupyter|mcpo|terminal]
+#   myai logs [comfy|kokoro|tts|jupyter|mcpo|terminal]
 #   myai backup [dir] archive chats/users/config
 #
 # Works on macOS (launchd) and Linux (systemd user units).
@@ -27,6 +27,7 @@ WEBUI_URL="http://127.0.0.1:${WEBUI_PORT}"
 OLLAMA_URL="http://127.0.0.1:11434"
 COMFY_URL="http://127.0.0.1:8188"
 KOKORO_URL="http://127.0.0.1:8880"
+TTS_URL="http://127.0.0.1:8881"
 JUPYTER_URL="http://127.0.0.1:8888"
 MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
@@ -43,6 +44,7 @@ STOP_TIMEOUT=30
 LOG_DIR="$HOME/.open-webui/logs"
 COMFY_LOG_DIR="$HOME/ComfyUI/logs"
 KOKORO_LOG_DIR="$HOME/kokoro/logs"
+TTS_LOG_DIR="$HOME/piper/logs"
 JUPYTER_LOG_DIR="$HOME/jupyter/logs"
 MCPO_LOG_DIR="$HOME/mcpo/logs"
 TERMINAL_LOG_DIR="$HOME/terminal/logs"
@@ -53,6 +55,7 @@ if [ "$OS" = mac ]; then
   SVC_OLLAMA="ollama"                       # managed via brew services
   SVC_COMFY="com.comfyui.server"
   SVC_KOKORO="com.kokoro.server"
+  SVC_TTS="com.ttsrouter.server"
   SVC_WEBUI="com.openwebui.server"
   SVC_JUPYTER="com.jupyter.server"
   SVC_MCPO="com.mcpo.server"
@@ -62,6 +65,7 @@ else
   SVC_OLLAMA="myai-ollama"                  # all four are systemd user units
   SVC_COMFY="myai-comfyui"
   SVC_KOKORO="myai-kokoro"
+  SVC_TTS="myai-tts-router"
   SVC_WEBUI="myai-openwebui"
   SVC_JUPYTER="myai-jupyter"
   SVC_MCPO="myai-mcpo"
@@ -78,6 +82,7 @@ up_ollama() { curl -fsS --max-time 2 "$OLLAMA_URL/api/version"    >/dev/null 2>&
 up_webui()  { curl -fsS --max-time 2 "$WEBUI_URL/health"          >/dev/null 2>&1; }
 up_comfy()  { curl -fsS --max-time 2 "$COMFY_URL/system_stats"    >/dev/null 2>&1; }
 up_kokoro() { curl -fsS --max-time 2 "$KOKORO_URL/v1/audio/voices">/dev/null 2>&1; }
+up_tts()    { curl -fsS --max-time 2 "$TTS_URL/health">/dev/null 2>&1; }
 # /api is the one Jupyter route that answers without the auth token.
 up_jupyter(){ curl -fsS --max-time 2 "$JUPYTER_URL/api"              >/dev/null 2>&1; }
 up_mcpo()   { curl -fsS --max-time 2 "$MCPO_URL/openapi.json"        >/dev/null 2>&1; }
@@ -199,6 +204,7 @@ cmd_start() {
   fi
 
   for pair in "$SVC_COMFY|ComfyUI|up_comfy" "$SVC_KOKORO|Kokoro TTS|up_kokoro" \
+              "$SVC_TTS|TTS router|up_tts" \
               "$SVC_JUPYTER|Jupyter|up_jupyter" "$SVC_MCPO|MCP tools|up_mcpo" \
               "$SVC_TERMINAL|Terminal|up_terminal"; do
     IFS='|' read -r svc name fn <<<"$pair"
@@ -224,6 +230,7 @@ cmd_stop() {
   printf '%sStopping local AI stack%s\n' "$BOLD" "$OFF"
   svc_installed "$SVC_WEBUI"  && { svc_down "$SVC_WEBUI";  wait_down "Open WebUI" up_webui; }
   svc_installed "$SVC_COMFY"  && { svc_down "$SVC_COMFY";  wait_down "ComfyUI"    up_comfy; }
+  svc_installed "$SVC_TTS" && { svc_down "$SVC_TTS"; wait_down "TTS router" up_tts; }
   svc_installed "$SVC_KOKORO" && { svc_down "$SVC_KOKORO"; wait_down "Kokoro TTS" up_kokoro; }
   svc_installed "$SVC_TERMINAL" && { svc_down "$SVC_TERMINAL"; wait_down "Terminal"  up_terminal; }
   svc_installed "$SVC_MCPO"    && { svc_down "$SVC_MCPO";    wait_down "MCP tools"  up_mcpo; }
@@ -232,8 +239,8 @@ cmd_stop() {
 
   sweep_residue
 
-  local ports; ports=$(lsof -nP -iTCP:8080 -iTCP:11434 -iTCP:8188 -iTCP:8880 -iTCP:8888 -iTCP:8001 -iTCP:8002 -sTCP:LISTEN -t 2>/dev/null | tr '\n' ' ')
-  [ -n "$ports" ] && bad "ports still bound by pid(s): $ports" || ok "ports 8080/11434/8188/8880/8888/8001/8002 released"
+  local ports; ports=$(lsof -nP -iTCP:8080 -iTCP:11434 -iTCP:8188 -iTCP:8880 -iTCP:8881 -iTCP:8888 -iTCP:8001 -iTCP:8002 -sTCP:LISTEN -t 2>/dev/null | tr '\n' ' ')
+  [ -n "$ports" ] && bad "ports still bound by pid(s): $ports" || ok "ports 8080/11434/8188/8880/8881/8888/8001/8002 released"
   info "stays stopped across reboots until: myai start"
 }
 
@@ -242,6 +249,7 @@ cmd_status() {
   up_ollama && ok "Ollama     $OLLAMA_URL" || bad "Ollama     not running"
   if svc_installed "$SVC_COMFY";  then up_comfy  && ok "ComfyUI    $COMFY_URL  (loopback only)"  || bad "ComfyUI    not running"; fi
   if svc_installed "$SVC_KOKORO"; then up_kokoro && ok "Kokoro TTS $KOKORO_URL  (loopback only)" || bad "Kokoro TTS not running"; fi
+  if svc_installed "$SVC_TTS"; then up_tts && ok "TTS router $TTS_URL  (loopback only)" || bad "TTS router not running"; fi
   if svc_installed "$SVC_JUPYTER"; then up_jupyter && ok "Jupyter    $JUPYTER_URL  (code interpreter)" || bad "Jupyter    not running"; fi
   if svc_installed "$SVC_TERMINAL"; then
     up_terminal && ok "Terminal   $TERMINAL_URL  (read-only shell)" || bad "Terminal   not running"
@@ -260,7 +268,7 @@ cmd_status() {
 
   printf '\n  %sservices%s\n' "$DIM" "$OFF"
   if [ "$OS" = mac ]; then
-    launchctl list 2>/dev/null | grep -E 'openwebui|ollama|comfyui|kokoro|jupyter|mcpo|terminal' | sed 's/^/    /' || echo "    (none loaded)"
+    launchctl list 2>/dev/null | grep -E 'openwebui|ollama|comfyui|kokoro|ttsrouter|jupyter|mcpo|terminal' | sed 's/^/    /' || echo "    (none loaded)"
   else
     systemctl --user list-units --type=service --no-legend 'myai-*' 2>/dev/null | sed 's/^/    /' || echo "    (none loaded)"
   fi
@@ -273,6 +281,7 @@ cmd_logs() {
   case "${1:-}" in
     comfy)  d="$COMFY_LOG_DIR";  u="$SVC_COMFY"  ;;
     kokoro) d="$KOKORO_LOG_DIR"; u="$SVC_KOKORO" ;;
+    tts)    d="$TTS_LOG_DIR";    u="$SVC_TTS" ;;
     jupyter) d="$JUPYTER_LOG_DIR"; u="$SVC_JUPYTER" ;;
     mcp|mcpo) d="$MCPO_LOG_DIR";   u="$SVC_MCPO"   ;;
     term|terminal) d="$TERMINAL_LOG_DIR"; u="$SVC_TERMINAL" ;;
@@ -298,7 +307,7 @@ cmd_backup() {
   if up_webui; then was_up=1; svc_down "$SVC_WEBUI"; wait_down "Open WebUI" up_webui; fi
 
   local extra=()
-  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
+  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
   [ "$OS" = linux ] && [ -d "$HOME/.config/systemd/user" ] && extra=(-C "$HOME/.config/systemd/user" .)
 
   tar -czf "$out" -C "$HOME" .open-webui \
@@ -498,6 +507,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs         tail Open WebUI logs
   myai logs comfy   tail ComfyUI logs
   myai logs kokoro  tail Kokoro logs
+  myai logs tts     tail TTS router logs
   myai logs jupyter tail Jupyter (code interpreter) logs
   myai logs mcpo    tail MCP tool server logs
   myai logs terminal tail terminal server logs
