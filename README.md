@@ -679,7 +679,7 @@ brew install block-goose-cli        # macOS
 ```
 
 ```bash
-cd ~/some-project
+cd ~/some-project                   # this directory IS the sandbox — cd first
 goose                               # interactive session in this directory
 goose run -t "summarise the last 5 commits"     # one shot
 goose session --name lab            # a session you can return to
@@ -688,6 +688,14 @@ goose session --resume              # pick the last one up
 
 It asks before anything with side effects. `GOOSE_MODE=auto goose` lets it act
 unattended; `chat` turns tools off entirely.
+
+**There is no sandbox.** goose reads, writes and runs commands anywhere your user
+account can, wherever you start it. `smart_approve` — showing you each command before
+it runs — is the only thing between it and your home directory, so think before using
+`auto` outside a scratch directory.
+
+goose also rewrites this config itself, expanding it and re-enabling telemetry. Worth
+re-checking after an upgrade if that matters to you.
 
 ### Why it is worth having alongside the web UI
 
@@ -731,10 +739,16 @@ goose speaks MCP over stdio, so it uses the same servers as the browser stack di
 
 | Extension | What it adds |
 |---|---|
-| `developer` | shell, file editing, search — goose's built-in |
-| `filesystem` | MCP filesystem, scoped to `~/ai-workspace` |
+| `developer` | shell, file editing, search — goose's built-in, **unrestricted** |
 | `fetch` | retrieve a URL |
+| `filesystem` | MCP filesystem — **shipped disabled**, see below |
 | `memory` | knowledge graph — **shipped disabled** |
+
+`filesystem` is off because it is redundant and actively misleading. goose replaces
+that server's allowed-directory argument with its own working directory, whatever you
+configure. Started in one project it will refuse to write to another and explain that
+it is "sandboxed" — while the `developer` extension beside it writes the same path
+without complaint. One of those answers is wrong and nothing tells you which.
 
 `memory` is off because with four extensions loaded, a 3B-active model began calling
 tools that had not been advertised and returned empty turns. Enable it in
