@@ -68,6 +68,27 @@ $ grep -n "IMSI unknown in HSS" ~/specs/3GPP-24.301.txt
 A wrong clause reference gets copied into a code comment and outlives everyone who
 saw it. That is the failure this skill exists to prevent.
 
+### Reading a specification without being fooled by its contents page
+
+A 3GPP spec opens with a table of contents thousands of lines long, and grep hits
+it first. A ToC line looks like a section heading with a trailing number:
+
+    962: 9.4.10.2	IMEISV	444
+
+That 444 is a PAGE NUMBER, not a value. Neighbouring lines end 443, 444, 445 —
+that pattern is the tell. A model once read exactly this line and reported the
+IMEISV identity type as "444".
+
+So:
+- Check where the hit is. Anything in roughly the first 5% of the file is the
+  contents page. `wc -l` the file, compare.
+- Prefer the LATER occurrence of a term; the body always follows the ToC.
+- Before quoting a hit, read around it: `sed -n 'N-8,N+8p' file`. Body text is
+  prose and tables; ToC entries are a column of headings with page numbers.
+- If every hit looks like a heading and a number, you have only found the
+  contents. Grep the body wording instead — the value itself, the field name, a
+  phrase from the encoding table — not the section title.
+
 ## Which document
 
 Derive it from the question; these are common ones, not a limit:

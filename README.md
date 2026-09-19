@@ -594,8 +594,17 @@ The fix is not a better prompt. It is giving the model the document.
 ./scripts/fetch-specs.sh --have                 # what is local
 ```
 
-Documents land in `~/specs` as plain text, one file each — a 3GPP TS is a couple of
-MB and about 46,000 lines. The answer the model invented is one grep away:
+Documents land in `~/specs` as markdown, one file each — a 3GPP TS is a few MB and
+tens of thousands of lines.
+
+**Conversion matters more than it looks.** A specification's real content is in its
+tables, and `textutil` flattens a table to one cell per line: the row
+`| 0 | 1 | 1 | IMEISV |` becomes four separate lines, so a grep for `IMEISV` returns a
+bare word with its bit values nowhere in sight. A model reading that reported the
+IMEISV identity type as **444** — the page number from the contents page. `pandoc`
+keeps the row intact, the same grep returns the whole row, and the answer is **3
+(011)**. The fetcher prefers pandoc for that reason and falls back to textutil with a
+warning. The answer the model invented is one grep away:
 
 ```
 $ grep -n "IMSI unknown in HSS" ~/specs/3GPP-24.301.txt
@@ -614,6 +623,26 @@ answer.
 Everything here is openly published: 3GPP specifications are free from 3gpp.org
 without registration, RFCs are public domain. The corpus is fetched at runtime into
 `~/specs`, outside the repository — no standards text is redistributed here.
+
+### Asking for a chart or an infographic
+
+Open WebUI renders an `html` code block in its Artifacts panel, as a real page beside
+the chat. The model has no way to discover that, so without being told it produces an
+"infographic" out of box-drawing characters — a picture of a picture.
+
+`configure.sh` adds an instruction covering it: on any request for an infographic,
+diagram, chart or dashboard, emit a complete self-contained HTML document, never ASCII
+boxes. The page must render with no network — no CDN, no web fonts — so charts have to
+be inline SVG.
+
+The same pass tells the model to say when it goes online: search or fetch freely, but
+state what was searched for, give the URL, and mark which parts of the answer came from
+the web. Web search is pre-enabled per model through `meta.defaultFeatureIds`.
+
+Expect to iterate on layout. Asked for a two-vendor comparison, a 30B model produced a
+properly styled dark-theme page and then put both vendors in one column as two rows
+labelled "Cost". Telling it to restructure works; getting it right unprompted is where
+a larger model still shows.
 
 ### Measuring response time
 

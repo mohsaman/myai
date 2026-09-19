@@ -104,12 +104,20 @@ fetch_3gpp() {   # fetch_3gpp <number e.g. 24.301> <output file>
   local doc; doc="$(find "$tmp" -maxdepth 1 \( -name '*.docx' -o -name '*.doc' \) | head -1)"
   [ -z "$doc" ] && { bad "3GPP $spec: archive held no document"; rm -rf "$tmp"; return 1; }
 
-  if command -v textutil >/dev/null 2>&1; then        # macOS, handles .doc and .docx
+  # pandoc first, and the choice matters more than it looks. A specification's
+  # real content is in its tables, and textutil flattens a table to one cell per
+  # line — the row "| 0 | 1 | 1 | IMEISV |" becomes four separate lines, so a grep
+  # for IMEISV returns a bare word with its bit values nowhere in sight. A model
+  # reading that answered the IMEISV identity type as "444", which was the page
+  # number from the contents page. pandoc keeps the row intact and greppable.
+  # It costs about 15x the conversion time (still seconds) and twice the file size.
+  if command -v pandoc >/dev/null 2>&1; then
+    pandoc -t markdown -o "$out" "$doc" 2>/dev/null
+  elif command -v textutil >/dev/null 2>&1; then      # macOS fallback
     textutil -convert txt -output "$out" "$doc" 2>/dev/null
-  elif command -v pandoc >/dev/null 2>&1; then
-    pandoc -t plain -o "$out" "$doc" 2>/dev/null
+    info "converted with textutil — install pandoc for readable tables"
   else
-    bad "need textutil (macOS) or pandoc to convert Word documents"; rm -rf "$tmp"; return 1
+    bad "need pandoc (preferred) or textutil to convert Word documents"; rm -rf "$tmp"; return 1
   fi
   rm -rf "$tmp"
   printf '%s' "${zip#*-}" | sed 's/\.zip//'           # echo the version tag

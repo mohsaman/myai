@@ -48,6 +48,10 @@ ALLOWED = {
     "free", "lscpu", "lsblk", "systemctl", "journalctl", "ip",   # useful on Linux targets
     "ps", "launchctl", "lsof", "pgrep",
     "git", "ollama", "python3", "which", "env", "defaults",
+    # Standards fetcher. It is not a general downloader: the URLs are
+    # hardcoded to 3gpp.org and rfc-editor.org, so this grants the model
+    # "fetch a published specification" and nothing wider.
+    "fetch-specs",
 }
 
 DENIED_SUBCOMMANDS = {
@@ -64,7 +68,7 @@ DENIED_SUBCOMMANDS = {
 
 SHELL_METACHARACTERS = set(";&|<>`$\n")
 PATH_CONFINEMENT_EXEMPT = {"df", "sysctl", "vm_stat", "system_profiler", "uname",
-                           "sw_vers", "free", "lscpu", "lsblk"}
+                           "sw_vers", "free", "lscpu", "lsblk", "fetch-specs"}
 
 SENSITIVE_DIRS = {".ssh", ".gnupg", ".aws", ".kube", ".docker", ".password-store",
                   "Keychains", ".config/gh", ".azure", ".gcloud"}

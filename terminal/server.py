@@ -55,6 +55,10 @@ ALLOWED = {
     "ps", "launchctl", "lsof", "pgrep",
     # dev
     "git", "ollama", "python3", "which", "env", "defaults",
+    # Standards fetcher. It is not a general downloader: the URLs are
+    # hardcoded to 3gpp.org and rfc-editor.org, so this grants the model
+    # "fetch a published specification" and nothing wider.
+    "fetch-specs",
 }
 
 # Subcommands that would mutate state, for tools that can do both.
@@ -73,7 +77,7 @@ SHELL_METACHARACTERS = set(";&|<>`$\n")
 # Tools whose path arguments name a volume or device rather than a file to read.
 # Confining these to ROOT would reject `df -h /` while exposing nothing: they
 # report capacity and mount metadata, never file contents.
-PATH_CONFINEMENT_EXEMPT = {"df", "sysctl", "vm_stat", "system_profiler", "uname", "sw_vers"}
+PATH_CONFINEMENT_EXEMPT = {"df", "sysctl", "vm_stat", "system_profiler", "uname", "sw_vers", "fetch-specs"}
 
 app = FastAPI(
     title="myai terminal",

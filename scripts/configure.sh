@@ -164,6 +164,44 @@ def setup(model_id, label, suffix, vision, legacy, hidden):
 for mid, label, suffix, vis, leg, hid in MODELS:
     try_(f"{mid} -> {label} ({suffix})" + ("  [hidden]" if hid else ""),
          lambda a=mid, b=label, c=suffix, d=vis, e=leg, f=hid: setup(a, b, c, d, e, f))
+
+# 7. Behaviour the models do not have by default.
+#
+#    Both of these are things the interface already supports and the model has no
+#    way to discover. Without them it will tell you it cannot reach the internet
+#    while holding a search tool, and draw an "infographic" out of box-drawing
+#    characters in a chat interface that renders HTML.
+PREAMBLE = """Reaching the internet:
+- You may search the web or fetch a URL whenever it would make your answer better. Use that judgement freely; do not ask permission first.
+- But always say so in the answer. State that you went online, what you searched for or fetched, and give the URL.
+- Mark clearly which parts came from the web and which from your own knowledge.
+- If a search returns nothing useful, say so rather than quietly falling back on memory.
+
+Infographics, diagrams and anything visual:
+- When asked for an infographic, diagram, chart, dashboard, poster or "make this visual", output a COMPLETE HTML DOCUMENT in a ```html code block. This interface renders it as a real page. Never draw ASCII boxes with box-drawing characters — that is a picture of a picture.
+- Self-contained: <!DOCTYPE html>, one <style> block, no external CSS, no CDN scripts, no web fonts. It must render with no network.
+- Design it rather than dumping text into boxes: readable width, real hierarchy, CSS grid or flex, dark background with light text, colours as variables on :root.
+- Put the actual content in it. Numbers and specifics are what make an infographic worth looking at.
+- Do not explain the HTML afterwards."""
+
+def behaviour(model_id):
+    enc = urllib.parse.quote(model_id, safe="")
+    cur = call(f"/api/v1/models/model?id={enc}")
+    params = dict(cur.get("params") or {})
+    if "Infographics, diagrams" in params.get("system", ""):
+        return
+    params["system"] = (params.get("system", "") + "\n\n" + PREAMBLE).strip()
+    meta = dict(cur.get("meta") or {})
+    # Pre-enable web search for new chats with this model.
+    meta["defaultFeatureIds"] = sorted(set((meta.get("defaultFeatureIds") or []) + ["web_search"]))
+    caps = dict(meta.get("capabilities") or {}); caps["web_search"] = True
+    meta["capabilities"] = caps
+    call(f"/api/v1/models/model/update?id={enc}",
+         {"id": model_id, "name": cur["name"], "base_model_id": cur.get("base_model_id"),
+          "params": params, "meta": meta})
+
+for mid in (os.environ["CHAT_MODEL"], os.environ["CODE_MODEL"]):
+    try_(f"web + visual behaviour -> {mid}", lambda a=mid: behaviour(a))
 PY
 
 echo
