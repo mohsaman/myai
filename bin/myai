@@ -439,16 +439,28 @@ tasks  = sorted(evals, key=int)[-int(os.environ["N"]):]
 if not tasks:
     print("    no completed generations logged yet"); raise SystemExit
 print(f"    {'in':>7} {'out':>6} {'wait':>7} {'generate':>9} {'tok/s':>7}")
-rates = []
+rows, rates = [], []
 for t in tasks:
     p_ms, p_n = prompt.get(t, (0.0, 0))
-    e_ms, e_n, tps = evals[t]; rates.append(tps)
+    e_ms, e_n, tps = evals[t]
+    rows.append((p_n, tps)); rates.append(tps)
     print(f"    {p_n:>7} {e_n:>6} {p_ms/1000:>6.1f}s {e_ms/1000:>8.1f}s {tps:>7.1f}")
 mid = sorted(rates)[len(rates)//2]
 print(f"\n    min {min(rates):.1f} · median {mid:.1f} · max {max(rates):.1f} tok/s   (n={len(rates)})")
-slow = [r for r in rates if r < max(rates) * 0.5]
-if slow:
-    print(f"    {len(slow)} run(s) under half peak — usually a model reload or two models competing for the GPU")
+
+# Generation slows as context grows — every token attends over everything before
+# it — so a slow run on a long prompt is expected, not a fault. Only a slow run
+# on a SHORT prompt points at a reload or two models competing for the GPU.
+peak = max(rates)
+short = [(n, r) for n, r in rows if n < 200]
+suspect = [r for n, r in short if r < peak * 0.5]
+big = [n for n, _ in rows if n >= 2000]
+if suspect:
+    print(f"    {len(suspect)} short-prompt run(s) under half peak — suspect a model reload")
+    print(f"    or two models competing for GPU memory; check 'loaded now' below.")
+elif big:
+    print(f"    slower runs here are the long-context ones (up to {max(big)} prompt tokens),")
+    print(f"    which is expected: generation cost grows with what is already in the window.")
 PYSTATS
   printf '\n  %sloaded now%s\n' "$DIM" "$OFF"
   ollama ps 2>/dev/null | sed 's/^/    /'

@@ -585,9 +585,11 @@ Two things the table makes visible that are otherwise invisible:
 - **Long outputs run slower per token.** Each new token attends over everything before
   it, so a 1,800-token answer generates at a lower rate than a 20-token one — measured
   here at 27 tok/s versus 31 on the same model.
-- **A run at well under half your peak rate is a symptom, not noise.** Almost always a
-  model being reloaded, or two models competing for GPU memory. `myai stats` prints
-  what is loaded underneath the table so the two can be read together.
+- **Judge a slow run against its prompt size, not against your peak.** A long-context
+  request is *supposed* to be slower. `myai stats` only warns when a run with a SHORT
+  prompt comes in under half peak, which is the case that actually indicates a model
+  reload or two models competing for GPU memory — and it prints what is loaded
+  underneath the table so the two can be read together.
 
 ### Remote machines over SSH
 
