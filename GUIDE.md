@@ -146,9 +146,17 @@ Latin letters are not enough to identify a language. And a reply that genuinely 
 two languages gets read in whichever one dominates — there is no mid-sentence switching.
 
 **Quality is not uniform across those 53 languages.** Kokoro's eight sound good. Piper's
-forty-five range from good to merely intelligible, and at least one has a real defect:
-the Persian voices mispronounce ق and غ, so words like داغ and قرمز come out wrong. That
-was found by synthesising Persian and transcribing it back with Whisper, which is a
+forty-five range from good to merely intelligible, and Persian has a measured defect:
+all five voices mangle **word-initial** ق and غ. قرمز comes out as گرمز, قطار loses its
+first consonant entirely, غذا becomes هزا. The same letters at the end of a word are
+fine — داغ and باغ both come back correctly — which is why some Persian sounds normal
+and some sounds like invented words.
+
+The router picks `fa_IR-ganji-medium`, which measured best of the five (12.3% word error
+against 28.8% for the voice the catalogue would otherwise have chosen). It reduces the
+problem; it does not remove it.
+
+That was found by synthesising Persian and transcribing it back with Whisper, which is a
 reasonable way to check any language you care about before trusting it:
 
 ```bash
@@ -306,8 +314,9 @@ degrades well before the limit.
 characters in this build. Use the spec corpus and file attachments instead.
 
 **Speak every language equally well.** It will *speak* 53, but see the note above: quality
-falls off outside the eight Kokoro handles, and Persian has a known consonant defect. Test
-a language before you rely on it.
+falls off outside the eight Kokoro handles, and Persian has a measured defect on
+word-initial ق and غ. Test a language before you rely on it — the method is three commands
+and it takes a couple of minutes.
 
 ---
 
