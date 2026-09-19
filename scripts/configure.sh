@@ -10,7 +10,8 @@ BASE="${OPENWEBUI_URL:-http://127.0.0.1:8080}"
 TASK_MODEL="${TASK_MODEL:-qwen2.5:3b}"
 CHAT_MODEL="${CHAT_MODEL:-qwen3:30b-a3b}"
 VISION_MODEL="${VISION_MODEL:-qwen2.5vl:7b}"
-EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text}"
+EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
+CODE_MODEL="${CODE_MODEL:-qwen2.5-coder:14b}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
 
 read -rp "Open WebUI admin email: " EMAIL
@@ -24,7 +25,7 @@ TOKEN=$(curl -fsS --max-time 20 -X POST "$BASE/api/v1/auths/signin" \
 [ -z "$TOKEN" ] && { echo "sign-in failed"; exit 1; }
 echo "signed in"
 
-export BASE TOKEN TASK_MODEL CHAT_MODEL VISION_MODEL EMBED_MODEL TTS_VOICE
+export BASE TOKEN TASK_MODEL CHAT_MODEL VISION_MODEL EMBED_MODEL CODE_MODEL TTS_VOICE
 python3 <<'PY'
 import os, json, urllib.request, urllib.error
 BASE, TOKEN = os.environ["BASE"], os.environ["TOKEN"]
@@ -116,24 +117,44 @@ def embed():
     })
 try_("embeddings -> " + os.environ["EMBED_MODEL"], embed)
 
-# 6. Per-model function calling.
-#    legacy = Open WebUI drives tools itself, instead of offering them to the model.
-#    Needed so web search actually runs, and so tool-less vision models stop erroring.
-def fc(model_id, vision):
+# 6. Per-model display names, capabilities and function calling.
+#    The dropdown otherwise shows raw ids like "qwen2.5vl:7b", which say nothing
+#    about what each model is for — so each gets its use in parentheses.
+#
+#    legacy function calling = Open WebUI drives tools itself, instead of offering
+#    them to the model. Needed so web search actually runs, and so tool-less vision
+#    models stop erroring. Only the chat and vision models need it.
+import urllib.parse
+
+MODELS = [
+    # id,                        display name,             use shown in parentheses
+    (os.environ["CHAT_MODEL"],   "Qwen3 30B",        "general chat + web search",                 False, True),
+    (os.environ["VISION_MODEL"], "Qwen2.5-VL 7B",    "vision \u2014 reads images",                  True,  True),
+    (os.environ["CODE_MODEL"],   "Qwen2.5 Coder 14B","writing & reviewing code",                  False, False),
+    (os.environ["TASK_MODEL"],   "Qwen2.5 3B",       "fast \u2014 titles, tags, background tasks",  False, False),
+    (os.environ["EMBED_MODEL"],  "Nomic Embed",      "embeddings \u2014 not for chat",              False, False),
+]
+
+def setup(model_id, label, suffix, vision, legacy):
     payload = {
-        "id": model_id, "name": model_id, "base_model_id": None,
+        "id": model_id,
+        "name": f"{label} ({suffix})",
+        "base_model_id": None,
         "meta": {"capabilities": {"vision": vision, "citations": True}},
-        "params": {"function_calling": "legacy"},
+        "params": {"function_calling": "legacy"} if legacy else {},
     }
     try:
         call("/api/v1/models/create", payload)
     except urllib.error.HTTPError as e:
-        if e.code in (400, 409):
-            call(f"/api/v1/models/model/update?id={model_id}", payload)
+        if e.code in (400, 409, 401):
+            # already exists -> update in place (id must be URL-encoded: it has a colon)
+            call("/api/v1/models/model/update?id=" + urllib.parse.quote(model_id, safe=""), payload)
         else:
             raise
-for m, v in ((os.environ["CHAT_MODEL"], False), (os.environ["VISION_MODEL"], True)):
-    try_(f"function calling: legacy -> {m}", lambda m=m, v=v: fc(m, v))
+
+for mid, label, suffix, vis, leg in MODELS:
+    try_(f"{mid} -> {label} ({suffix})",
+         lambda a=mid, b=label, c=suffix, d=vis, e=leg: setup(a, b, c, d, e))
 PY
 
 echo
