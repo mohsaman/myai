@@ -5,7 +5,7 @@
 #   myai stop         stop everything (stays stopped across reboots)
 #   myai restart      stop then start
 #   myai status       show what is running
-#   myai logs [comfy|kokoro]
+#   myai logs [comfy|kokoro|jupyter|mcpo|terminal]
 #   myai backup [dir] archive chats/users/config
 #
 # Works on macOS (launchd) and Linux (systemd user units).
@@ -302,6 +302,7 @@ cmd_backup() {
   info "models are NOT backed up (re-pull with: ollama pull <name>)"
 }
 
+
 case "${1:-}" in
   start)   cmd_start ;;
   stop)    cmd_stop ;;
@@ -320,7 +321,11 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs         tail Open WebUI logs
   myai logs comfy   tail ComfyUI logs
   myai logs kokoro  tail Kokoro logs
+  myai logs jupyter tail Jupyter (code interpreter) logs
+  myai logs mcpo    tail MCP tool server logs
+  myai logs terminal tail terminal server logs
   myai backup [dir] back up chats/users/config (default ~/myai-backups)
+
 
 platform: $OS
 EOF

@@ -112,7 +112,10 @@ def sensitive(path: Path) -> bool:
 
 
 def confine(path: Path, base: Path) -> Path:
-    resolved = (path if path.is_absolute() else base / path).expanduser().resolve()
+    # Expand '~' first: joining it onto base would bury it mid-path, where
+    # expanduser() no longer recognises it.
+    path = path.expanduser()
+    resolved = (path if path.is_absolute() else base / path).resolve()
     if resolved != ROOT and ROOT not in resolved.parents:
         raise HTTPException(status_code=403, detail=f"outside the permitted root {ROOT}")
     if sensitive(resolved):
@@ -246,9 +249,74 @@ def read_file(
     }
 
 
+class SetCwd(BaseModel):
+    cwd: Optional[str] = Field(None, description="Directory to switch to")
+    directory: Optional[str] = Field(None, description="Alias accepted by the file browser")
+
+
 @app.get("/files/cwd", summary="Current working directory")
 def files_cwd(_: None = Depends(auth), x_session_id: Optional[str] = Header(None)) -> dict:
-    return {"cwd": str(session_cwd(x_session_id))}
+    # The file browser reads home and root to draw its breadcrumb.
+    return {"cwd": str(session_cwd(x_session_id)), "home": str(ROOT), "root": str(ROOT)}
+
+
+@app.post("/files/cwd", summary="Change working directory")
+def set_cwd(
+    body: SetCwd,
+    _: None = Depends(auth),
+    x_session_id: Optional[str] = Header(None),
+) -> dict:
+    target = body.cwd or body.directory
+    if not target:
+        raise HTTPException(status_code=400, detail="cwd is required")
+    resolved = confine(Path(target), session_cwd(x_session_id))
+    if not resolved.is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {resolved}")
+    _cwd[x_session_id or "-"] = resolved
+    return {"cwd": str(resolved), "home": str(ROOT), "root": str(ROOT)}
+
+
+@app.get("/files/list", summary="List a directory")
+def files_list(
+    directory: str = ".",
+    _: None = Depends(auth),
+    x_session_id: Optional[str] = Header(None),
+) -> dict:
+    """Directory listing for the file browser.
+
+    Credential directories are hidden rather than refused: the browser walks the
+    tree on its own, so a 403 mid-listing would break the pane instead of simply
+    omitting what should not be read.
+    """
+    base = confine(Path(directory), session_cwd(x_session_id))
+    if not base.is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {base}")
+
+    entries = []
+    for child in sorted(base.iterdir(), key=lambda c: (not c.is_dir(), c.name.lower())):
+        if sensitive(child):
+            continue
+        try:
+            stat = child.stat()
+            size, modified = stat.st_size, int(stat.st_mtime)
+        except OSError:
+            size, modified = 0, 0
+        entries.append({
+            "name": child.name,
+            "path": str(child),
+            "type": "directory" if child.is_dir() else "file",
+            "size": size,
+            "modified": modified,
+        })
+    # writable=False keeps the browser read-only, matching the rest of this server.
+    return {"entries": entries, "writable": False, "cwd": str(base)}
+
+
+@app.get("/ports", summary="Forwarded ports")
+def ports(_: None = Depends(auth)) -> dict:
+    # The UI polls this for port-forwarding previews. This server forwards
+    # nothing; answering with an empty list stops it retrying.
+    return {"ports": []}
 
 
 @app.get("/api/config", summary="Feature flags")

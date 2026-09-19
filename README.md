@@ -522,6 +522,12 @@ shell, and only from an allowlist of inspection tools. So:
 One command per call. Ask for raw output and let the model interpret it, rather than
 trying to pipe.
 
+The Terminal panel's file browser is read-only and hides credential directories, so
+`~/.ssh` and friends do not appear in it at all. The panel's interactive shell pane and
+port forwarding are not implemented — Open WebUI expects a full workspace backend
+(a PTY over websocket) for those, which is a different piece of software to this one.
+The model-facing `run_command` tool is what this server is for, and that works.
+
 To widen or narrow the blast radius, edit `TERMINAL_ROOT` in the service definition
 (`~/Library/LaunchAgents/com.terminal.server.plist`, or the systemd unit) — pointing it
 at a single project directory is a reasonable default if you would rather not expose
