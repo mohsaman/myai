@@ -754,6 +754,44 @@ Honest expectation: a 3B-active model is a capable assistant for "run this, read
 summarise", and will struggle on long tasks that need many constraints held at once.
 `GOOSE_MAX_TURNS: 30` is set so a stuck loop stops rather than grinding.
 
+### Making it reason from evidence
+
+Out of the box goose describes what you could do. The difference between that and
+an agent that finds out and acts is almost entirely instructions.
+
+goose reads **`.goosehints`** into the system prompt of every session, from two
+places, and they **stack**:
+
+| File | Scope |
+|---|---|
+| `~/.config/goose/.goosehints` | every session on this machine |
+| `./.goosehints` | added on top, for that project |
+
+`AGENTS.md` is read the same way, for tools that share that convention.
+
+`install.sh` writes a starting `~/.config/goose/.goosehints`. What it asks for is
+behavioural rather than vague — the instructions that actually change output:
+
+- **Verify instead of assuming.** Check anything checkable on the machine. Quote
+  real output; never write output you did not receive.
+- **Exit 0 is not success.** Read what came back. Short or empty output where you
+  expected content usually means something failed silently.
+- **Chase surprises.** If output contradicts expectation, find out why before
+  moving on — the surprise is usually the real finding.
+- **You are on macOS.** `/proc` does not exist here. This one line prevents a
+  recurring class of wrong answer.
+- **Only call advertised tools.** Do not invent a tool name and call it.
+- **Separate verified from inferred**, and say "I don't know" rather than
+  inventing a plausible filename or config key.
+
+The effect is measurable. Asked how much RAM the machine has, the same model went
+from reciting to running `sysctl hw.memsize`, doing the 16 KB page arithmetic from
+`vm_stat`, and volunteering that inactive pages are reclaimable.
+
+Per-project hints are where this gets useful: put the architecture, the commands
+that matter and the mistakes to avoid in a `.goosehints` at the repo root, and every
+session starts knowing them.
+
 ### Extensions
 
 goose speaks MCP over stdio, so it uses the same servers as the browser stack directly —

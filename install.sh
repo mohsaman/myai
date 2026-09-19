@@ -163,6 +163,12 @@ if command -v goose >/dev/null 2>&1; then
   else
     info "goose config already present — left alone"
   fi
+  # Behavioural instructions, the equivalent of a CLAUDE.md. Loaded into every
+  # session; a .goosehints in the working directory stacks on top of this one.
+  if [ ! -f "$HOME/.config/goose/.goosehints" ] && [ -f "$HERE/goose/goosehints.example" ]; then
+    install -m 0600 "$HERE/goose/goosehints.example" "$HOME/.config/goose/.goosehints"
+    ok "wrote $HOME/.config/goose/.goosehints"
+  fi
 else
   info "goose not installed — skip (brew install block-goose-cli)"
 fi
