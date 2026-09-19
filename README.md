@@ -717,15 +717,20 @@ asking each model to find the CPU core count:
 | Model | Result |
 |---|---|
 | `qwen3:30b-a3b` | ran `sysctl -n hw.ncpu`, answered correctly, first try |
-| `gpt-oss:20b` | emitted `raw='{"}'` — malformed tool call — and assumed Linux, reading `/proc/cpuinfo` on a Mac |
+| `gpt-oss:20b` | malformed tool call, and assumed Linux — read `/proc/cpuinfo` on a Mac |
 
-The config ships with `gpt-oss:20b` as the stack's agentic default, but switch if it
-misbehaves:
+Across further sessions gpt-oss also invented three tools that do not exist
+(`container.exec`, `browser.run`, `cat`) and sent tool calls missing required fields.
+It is a capable chat model; it is not a reliable agent. The config therefore defaults
+to qwen3.
 
-```bash
-sed -i '' 's/^GOOSE_MODEL:.*/GOOSE_MODEL: qwen3:30b-a3b/' ~/.config/goose/config.yaml
-# or per run:
-GOOSE_MODEL=qwen3:30b-a3b goose
+Change the model in the `providers` block of `~/.config/goose/config.yaml` — goose
+reads that, not `GOOSE_MODEL` alone:
+
+```yaml
+providers:
+  ollama:
+    model: qwen3:30b-a3b
 ```
 
 Honest expectation: a 3B-active model is a capable assistant for "run this, read that,

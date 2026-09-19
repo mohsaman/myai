@@ -21,8 +21,13 @@
 # Telemetry is off. goose turns it back on when it rewrites this file; check it
 # after upgrades if that matters to you.
 #
-# On models: gpt-oss:20b is the stack's agentic default but emits malformed tool
-# calls under goose. qwen3:30b-a3b has been reliable. Switch in 'providers'.
+# On models: qwen3:30b-a3b is the default here because gpt-oss:20b does not hold
+# up as an agent under goose. Across separate sessions it invented three tools
+# that do not exist (container.exec, browser.run, cat) and emitted tool calls
+# missing required fields. qwen3 has completed the same tasks first try.
+# gpt-oss remains the better choice for chat in Open WebUI; this is specifically
+# about multi-turn tool use. Change it in the 'providers' block, not GOOSE_MODEL
+# alone — goose reads the providers block.
 
 OLLAMA_HOST: http://localhost:11434
 GOOSE_MODE: smart_approve
@@ -75,7 +80,8 @@ extensions:
 providers:
   ollama:
     enabled: true
-    model: gpt-oss:20b
+    model: qwen3:30b-a3b
     configured: true
 active_provider: ollama
 GOOSE_TELEMETRY_ENABLED: false
+GOOSE_MODEL: qwen3:30b-a3b
