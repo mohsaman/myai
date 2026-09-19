@@ -798,51 +798,85 @@ do the same job. Copy the role, standards and context sections into
 file is injected into every session, so a 90-line hints file spends roughly 1,200
 tokens of a 32k window before you have typed anything.
 
-### Skills — shared with Claude Code
+### Skills
 
-goose loads skills from `~/.claude/skills`, the same directory Claude Code uses. If
-you already keep skills there, goose has them with no further setup — verified on
-this machine, where goose could describe a `3gpp-expert` skill it was never
-explicitly given.
-
-A skill is a directory with a `SKILL.md` whose YAML frontmatter carries a `name`
-and a `description`:
-
-```
-~/.claude/skills/
-  3gpp-expert/SKILL.md
-  ss7-expert/SKILL.md
-  sala-vty/SKILL.md
-```
+A skill is a directory containing a `SKILL.md` whose YAML frontmatter carries a
+`name` and a `description`. The agent matches on the description, so write it as the
+terms that should trigger the skill rather than an abstract summary. You never invoke
+one by name — mention the subject and it loads.
 
 ```markdown
 ---
-name: my-domain
+name: mme-workspace
 description: >
-  What this covers and when to use it. The agent matches on this text, so list the
-  terms that should trigger it rather than describing it abstractly.
+  Working on the Rust MME workspace at ~/myaimme. Use whenever the user mentions
+  the MME workspace, myaimme, or asks to build, check or extend those crates.
 ---
 
-# Instructions the agent follows when the skill is active
+# Instructions the agent follows when this skill is active
 ```
 
-You do not invoke a skill by name — mention the subject and the agent loads it. Check
-what is visible with:
+goose reads skills from these roots:
+
+| Root | Notes |
+|---|---|
+| `~/.agents/skills/` | **goose's own.** Tool-neutral, and where you should author |
+| `~/.claude/skills/` | picked up automatically if it exists |
+| `builtin://skills/` | ships with goose — `web-search`, `goose-doc-guide` |
+
+`~/.agents/skills/` is in your home directory, so **skills are available from any
+working directory** — verified identical from `/`, `/tmp`, `/usr/local` and a project
+tree. Only per-project `.goosehints` are directory-dependent; skills are not.
+
+Ask goose what it has, and **use the CLI, not the model**:
 
 ```bash
-goose run --no-session -t "List the skills available to you."
+goose skills list        # authoritative: name, description, tokens, location
 ```
 
-Two things worth knowing:
+That distinction is not pedantic. Asked in conversation, the model omitted a skill it
+could describe accurately when asked directly, and denied having another that the CLI
+shows loaded. The CLI reads the filesystem; the model guesses at its own configuration.
 
-- **The listing can be incomplete.** Asked to list its skills, the model returned ten
-  and omitted one it could describe perfectly well when asked directly. Ask about a
-  specific skill rather than concluding from a list.
-- **A skill supplies framing, not facts.** With a 3GPP expert skill loaded and a hints
-  file forbidding unverified spec citations, the model still produced a confident,
-  wrong clause reference. A skill makes a model *sound* like a domain expert well
-  before it makes it *right*. Treat every specific — spec clause, cause code, version
-  — as unverified.
+#### Giving goose its own copies
+
+Names are de-duplicated across roots and **`~/.agents` wins**, so copying a skill into
+goose's root makes goose use its copy and ignore Claude's. The two then evolve
+independently.
+
+```bash
+./scripts/sync-skills.sh           # copy anything goose does not already have
+./scripts/sync-skills.sh --force   # re-copy, replacing goose's versions
+```
+
+Copying the files is not sufficient, which is the part worth knowing. Skills contain
+hardcoded paths: `sala-vty` keeps its knowledge registry, per-node grammars and
+interaction log under its own skill home. A plain `cp` leaves goose reading — and
+**writing** — Claude's tree while looking independent. The script rewrites those paths
+and then verifies no file under goose's root still refers to `.claude`. It also drops
+`.git` and any `cache/` of cloned repos, which took one skill from 435 MB to 2.4 MB.
+
+Claude's originals are never modified.
+
+Two caveats:
+
+- **goose still walks `~/.claude/skills`.** That root list is compiled into the binary;
+  `GOOSE_SEARCH_PATHS` only affects recipes. Once every name is shadowed it finds
+  nothing it will use, but "never scanned" is not achievable.
+- **Copies of synced skills freeze.** Claude-managed skills update themselves; goose's
+  copy does not, and because `~/.agents` wins it will keep using the stale one. Re-run
+  the script with `--force` after a sync, or delete goose's copy of any you would
+  rather track upstream.
+
+**A skill supplies framing, not facts.** With a 3GPP expert skill loaded and a hints
+file explicitly forbidding unverified spec citations, the model still produced a
+confident and wrong clause reference. A skill makes a model *sound* like a domain
+expert well before it makes it *right*.
+
+**Watch the context cost.** Every description sits in the system prompt of every
+session whether relevant or not; `goose skills list` prints the tokens per skill.
+Fifteen skills came to ~2,600 tokens here, on top of ~1,200 for the hints file —
+roughly 12% of a 32k window before anything is typed. Prune what you do not use.
 
 ### Recipes, memory and subagents
 

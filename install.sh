@@ -169,6 +169,16 @@ if command -v goose >/dev/null 2>&1; then
     install -m 0600 "$HERE/goose/goosehints.example" "$HOME/.config/goose/.goosehints"
     ok "wrote $HOME/.config/goose/.goosehints"
   fi
+  # goose's own skills root, independent of any other agent's layout.
+  if [ -d "$HERE/goose/skills" ]; then
+    mkdir -p "$HOME/.agents/skills"
+    for s in "$HERE"/goose/skills/*/; do
+      [ -d "$s" ] || continue
+      n="$(basename "$s")"
+      [ -e "$HOME/.agents/skills/$n" ] && { info "skill $n already present — left alone"; continue; }
+      cp -a "$s" "$HOME/.agents/skills/$n" && ok "installed skill $n"
+    done
+  fi
 else
   info "goose not installed — skip (brew install block-goose-cli)"
 fi
