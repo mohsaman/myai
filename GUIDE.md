@@ -116,10 +116,46 @@ steps, roughly 45 seconds.
 It is not in the model dropdown and cannot be — SDXL is a diffusion model in a separate
 process from Ollama. The dropdown lists language models only.
 
-### Speak and listen
+### Speak and listen, in any of 53 languages
 
-The speaker icon on any reply reads it aloud through Kokoro — 72 voices, about a second
-to start. The microphone dictates, via faster-whisper. Both local.
+The speaker icon on any reply reads it aloud. The microphone dictates, via faster-whisper.
+Both local.
+
+You do not pick a language. A router in front of the two speech engines reads the text,
+works out what language it is, and sends it to whichever engine can say it — Kokoro for
+the eight it does best, Piper for the other forty-five. Ask a question in Turkish and the
+answer comes back spoken in Turkish, with nothing switched by hand.
+
+The first reply in a new language pauses for a few seconds while its voice downloads
+(about 60 MB). Every reply after that is local and immediate. To warm one up in advance:
+
+```bash
+curl -s localhost:8881/languages | python3 -m json.tool   # what is ready
+curl -s -X POST localhost:8881/v1/audio/speech \
+     -H 'Content-Type: application/json' \
+     -d '{"input":"Merhaba, nasilsiniz?"}' -o /dev/null   # fetches Turkish
+```
+
+Detection is by language, not by alphabet, which is what makes it work in practice:
+Persian, Arabic and Urdu share a script but need different voices, and French, German
+and Turkish are all Latin. It reads a Persian sentence containing `5G` as Persian,
+because it counts letters and ignores digits.
+
+Two honest limits. Very short replies ("OK", "Done") default to English, because two
+Latin letters are not enough to identify a language. And a reply that genuinely mixes
+two languages gets read in whichever one dominates — there is no mid-sentence switching.
+
+**Quality is not uniform across those 53 languages.** Kokoro's eight sound good. Piper's
+forty-five range from good to merely intelligible, and at least one has a real defect:
+the Persian voices mispronounce ق and غ, so words like داغ and قرمز come out wrong. That
+was found by synthesising Persian and transcribing it back with Whisper, which is a
+reasonable way to check any language you care about before trusting it:
+
+```bash
+# say something, then have a different model read it back to you
+curl -s -X POST localhost:8881/v1/audio/speech -H 'Content-Type: application/json' \
+     -d '{"input":"<a sentence you know>"}' -o /tmp/check.wav
+```
 
 ### Search the web
 
@@ -268,6 +304,10 @@ degrades well before the limit.
 
 **Ingest documents into knowledge collections.** Open WebUI's RAG pipeline extracts zero
 characters in this build. Use the spec corpus and file attachments instead.
+
+**Speak every language equally well.** It will *speak* 53, but see the note above: quality
+falls off outside the eight Kokoro handles, and Persian has a known consonant defect. Test
+a language before you rely on it.
 
 ---
 

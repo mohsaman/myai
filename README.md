@@ -13,7 +13,7 @@ provider. What it can do:
 - **Inspect machines** — a read-only terminal for this computer and any SSH hosts you add: allowlisted commands, no shell, credential paths blocked
 - **Read images** — screenshots, diagrams, tables and scanned documents
 - **Generate images** — SDXL on the local GPU
-- **Speak and listen** — neural text-to-speech in 72 voices, plus dictation
+- **Speak and listen** — neural text-to-speech in 53 languages, plus dictation
 - **Search the web** — with citations, only when you ask for it
 - **Remember** — a persistent knowledge graph that carries across conversations
 - **64k context** — long documents and long conversations stay in memory
@@ -40,7 +40,9 @@ to phrase things, and where the sharp edges are.
 | **Ollama** | Runs the language models, serves them on a local API |
 | **Open WebUI** | Browser interface — chat, file upload, voice, model switching |
 | **ComfyUI + SDXL** | Image generation on the GPU |
-| **Kokoro** | Neural text-to-speech, 72 voices, OpenAI-compatible API |
+| **Kokoro** | Neural text-to-speech, 72 voices, 8 languages, best quality |
+| **Piper** | Text-to-speech for the other 45 languages, one model per voice |
+| **TTS router** | Detects the language of a reply and picks the engine that can say it |
 | **faster-whisper** | Speech recognition (built into Open WebUI) |
 | **Jupyter** | The code interpreter's kernel — real Python, filesystem and network |
 | **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
@@ -155,6 +157,27 @@ VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
 > The project is Docker-first and hardcodes container paths. Running it natively requires
 > `MODEL_DIR` and `VOICES_DIR` as absolute paths — the launch agent below sets them. Without
 > those you get `Read-only file system: '/app'`.
+
+Kokoro covers eight languages well. Piper covers fifty-three, so the two together are what
+let the stack speak anything, and a small router in front picks between them:
+
+```bash
+brew install ffmpeg                      # see the note below — not optional
+python3 -m venv ~/piper/venv
+~/piper/venv/bin/pip install piper-tts fastapi uvicorn httpx \
+                             lingua-language-detector
+mkdir -p ~/piper/logs ~/piper/voices
+```
+
+`install.sh` copies `tts/router.py` and `tts/voices.py` into `~/piper` and registers the
+service. No voices are downloaded up front — 177 voices at ~60 MB each is 10 GB, almost
+all of it for languages you will never use — so the router fetches one the first time a
+language comes up and reuses it from then on.
+
+> **ffmpeg is required, and its absence is silent.** Kokoro returns mp3, which Open WebUI
+> plays directly; Piper returns WAV, which Open WebUI transcodes. Without ffmpeg every
+> non-Kokoro language fails with a bare `[Errno 2] No such file or directory: 'ffprobe'`
+> and nothing in the interface says why.
 
 ### 5. Code interpreter and agentic tools
 
@@ -275,6 +298,19 @@ VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
 ./venv/bin/python docker/scripts/download_model.py --output api/src/models/v1_0
 ```
 
+### 4b. Piper and the TTS router
+
+```bash
+sudo apt install -y ffmpeg               # required to play Piper's WAV output
+python3 -m venv ~/piper/venv
+~/piper/venv/bin/pip install piper-tts fastapi uvicorn httpx \
+                             lingua-language-detector
+mkdir -p ~/piper/logs ~/piper/voices
+```
+
+Voices are fetched on first use rather than up front. See the macOS section above for why,
+and for what happens when ffmpeg is missing.
+
 ### 5. Code interpreter and agentic tools
 
 A Python kernel for the code interpreter, and the MCP tool servers the model calls.
@@ -372,16 +408,21 @@ on *every* render.
 
 Admin → Settings → Audio → TTS:
 - Engine: **OpenAI**
-- Base URL: `http://127.0.0.1:8880/v1`
+- Base URL: `http://127.0.0.1:8881/v1`  ← the router, not Kokoro directly
 - API key: any non-empty string
 - Model: `kokoro`, Voice: `af_bella`
 
-Kokoro speaks the OpenAI protocol, so no special support is needed.
+Point it at `8880` instead and you get Kokoro alone: excellent English, and every other
+language read with an English accent. The router speaks the same OpenAI protocol, so
+nothing else in the configuration changes.
 
 ### Speech-to-text
 
 Engine: leave **empty** (local faster-whisper). Set Whisper Model to `small` — the `base`
 default is noticeably weaker.
+
+`small` is fine for English. For dictation in other languages it is the weak link, and
+`medium` is a marked improvement for about 1.5 GB and a little latency.
 
 ### Web search
 
@@ -416,6 +457,7 @@ myai status         # health of each service, LAN URL, installed models
 myai logs           # tail Open WebUI logs
 myai logs comfy     # tail ComfyUI logs
 myai logs kokoro    # tail Kokoro logs
+myai logs tts       # tail TTS router logs
 myai backup [dir]   # archive chats, users, config and the launch agents
 ```
 
@@ -682,7 +724,7 @@ The terminal reaches other machines too — a NAS, a lab box, a server — using
 allowlist. Add targets from the command line:
 
 ```bash
-myai terminal add nas  admin@192.168.20.10
+myai terminal add nas  admin@192.168.1.10
 myai terminal add edge ops@10.0.0.5 --port 2222 --jump ops@bastion.example.net
 myai terminal add pi   pi@raspberrypi.local --key ~/.ssh/id_pi
 myai terminal list
@@ -991,7 +1033,7 @@ tools that had not been advertised and returned empty turns. Enable it in
 
 ## Security notes
 
-- **Ollama, ComfyUI and Kokoro bind to loopback only.** Only Open WebUI is exposed, and it
+- **Ollama, ComfyUI, Kokoro and the TTS router bind to loopback only.** Only Open WebUI is exposed, and it
   requires a login. Don't expose the others — none of them has authentication.
 - **Register the admin account immediately** after first start. Until one exists, signup is
   open to anyone who can reach the port.
