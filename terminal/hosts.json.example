@@ -13,7 +13,7 @@
     "Entries whose name starts with _ are ignored.",
     "",
     "Example:",
-    "  \"nas\":  { \"host\": \"192.168.20.10\", \"user\": \"admin\" },",
+    "  \"nas\":  { \"host\": \"192.168.1.10\", \"user\": \"admin\" },",
     "  \"edge\": { \"host\": \"10.0.0.5\", \"user\": \"ops\", \"port\": 2222,",
     "             \"jump\": \"ops@bastion.example.net\" }"
   ]
