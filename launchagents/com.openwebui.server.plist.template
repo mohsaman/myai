@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openwebui.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/.open-webui/venv/bin/open-webui</string>
+        <string>serve</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>8080</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__HOME__/.open-webui/venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>DATA_DIR</key>
+        <string>__HOME__/.open-webui</string>
+        <key>OLLAMA_BASE_URL</key>
+        <string>http://127.0.0.1:11434</string>
+        <key>WEBUI_AUTH</key>
+        <string>True</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/.open-webui</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.open-webui/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.open-webui/logs/stderr.log</string>
+</dict>
+</plist>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>__HOME__/ComfyUI/venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+		<string>1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.comfyui.server</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__HOME__/ComfyUI/venv/bin/python</string>
+		<string>__HOME__/ComfyUI/main.py</string>
+		<string>--listen</string>
+		<string>127.0.0.1</string>
+		<string>--port</string>
+		<string>8188</string>
+		<string>--highvram</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/ComfyUI/logs/stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>__HOME__/ComfyUI/logs/stdout.log</string>
+	<key>WorkingDirectory</key>
+	<string>__HOME__/ComfyUI</string>
+</dict>
+</plist>

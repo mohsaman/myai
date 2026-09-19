@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kokoro.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/kokoro/venv/bin/python</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>api.src.main:app</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8880</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__HOME__/kokoro/venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>__HOME__/kokoro</string>
+        <key>MODEL_DIR</key>
+        <string>__HOME__/kokoro/api/src/models</string>
+        <key>VOICES_DIR</key>
+        <string>__HOME__/kokoro/api/src/voices/v1_0</string>
+        <key>PYTORCH_ENABLE_MPS_FALLBACK</key>
+        <string>1</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/kokoro</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/kokoro/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/kokoro/logs/stderr.log</string>
+</dict>
+</plist>

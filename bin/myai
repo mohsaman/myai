@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+# myai — start/stop the local AI stack (Ollama + Open WebUI)
+#
+#   myai start     start both services, wait until ready, open the browser
+#   myai stop      stop both services (stays stopped across reboots)
+#   myai restart   stop then start
+#   myai status    show what is running
+#   myai logs      tail the Open WebUI logs
+#
+# Reboot behaviour: 'start' enables both launchd agents, so they come back
+# automatically at login. 'stop' disables them, so they stay down across a
+# reboot until 'myai start' is issued again.
+
+set -uo pipefail
+
+WEBUI_LABEL="com.openwebui.server"
+WEBUI_PLIST="$HOME/Library/LaunchAgents/${WEBUI_LABEL}.plist"
+WEBUI_PORT="8080"
+WEBUI_URL="http://127.0.0.1:${WEBUI_PORT}"
+OLLAMA_URL="http://127.0.0.1:11434"
+COMFY_LABEL="com.comfyui.server"
+COMFY_PLIST="$HOME/Library/LaunchAgents/${COMFY_LABEL}.plist"
+COMFY_URL="http://127.0.0.1:8188"
+LOG_DIR="$HOME/.open-webui/logs"
+COMFY_LOG_DIR="$HOME/ComfyUI/logs"
+KOKORO_LABEL="com.kokoro.server"
+KOKORO_PLIST="$HOME/Library/LaunchAgents/${KOKORO_LABEL}.plist"
+KOKORO_URL="http://127.0.0.1:8880"
+KOKORO_LOG_DIR="$HOME/kokoro/logs"
+GUI="gui/$(id -u)"
+READY_TIMEOUT=90
+OLLAMA_KEEP_ALIVE="60s"
+STOP_TIMEOUT=30
+
+BOLD=$'\033[1m'; GREEN=$'\033[32m'; RED=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+ok()   { printf '  %s✓%s %s\n' "$GREEN" "$OFF" "$1"; }
+bad()  { printf '  %s✗%s %s\n' "$RED" "$OFF" "$1"; }
+info() { printf '  %s•%s %s\n' "$DIM" "$OFF" "$1"; }
+
+need_brew() {
+  command -v brew >/dev/null 2>&1 || { bad "Homebrew not found; cannot manage the Ollama service"; return 1; }
+}
+
+ollama_up() { curl -fsS --max-time 2 "$OLLAMA_URL/api/version" >/dev/null 2>&1; }
+webui_up()  { curl -fsS --max-time 2 "$WEBUI_URL/health"       >/dev/null 2>&1; }
+comfy_up()  { curl -fsS --max-time 2 "$COMFY_URL/system_stats" >/dev/null 2>&1; }
+kokoro_up() { curl -fsS --max-time 2 "$KOKORO_URL/v1/audio/voices" >/dev/null 2>&1; }
+
+# Bring a launchd-managed agent up: clear any persistent disable, then bootstrap.
+agent_start() {  # agent_start <label> <plist> <name> <up-fn>
+  local label="$1" plist="$2" name="$3" upfn="$4"
+  [ -f "$plist" ] || { bad "missing $plist"; return 1; }
+  launchctl enable "$GUI/$label" 2>/dev/null
+  if "$upfn"; then ok "$name already running"; return 0; fi
+  launchctl bootstrap "$GUI" "$plist" 2>/dev/null   # error 5 = already loaded
+  wait_for "$name" "$upfn"
+}
+
+# Take an agent down and keep it down across reboots.
+agent_stop() {  # agent_stop <label> <name> <up-fn>
+  local label="$1" name="$2" upfn="$3"
+  launchctl bootout "$GUI/$label" 2>/dev/null
+  launchctl disable "$GUI/$label" 2>/dev/null
+  wait_down "$name" "$upfn"
+}
+
+# Stopping the supervised process does not always take its children with it:
+# Ollama forks a separate model *runner* per loaded model, and ComfyUI/PyTorch
+# can leave worker processes behind. Find and clear anything still resident.
+# $$ and the parent shell are excluded so the script never matches itself.
+residue_pids() {
+  # Patterns are deliberately narrow: they must match the *servers* and their
+  # children, not shells that merely mention these paths (e.g. a download into
+  # ~/ComfyUI), which a looser pattern would kill.
+  pgrep -f 'bin/ollama|ollama runner|open[-_]webui|ComfyUI/main\.py|api\.src\.main:app' 2>/dev/null \
+    | grep -vx "$$" | grep -vx "$PPID" | while read -r p; do
+        # skip anything whose command line is this script itself
+        case "$(ps -o command= -p "$p" 2>/dev/null)" in
+          *myai*) ;;
+          *) echo "$p" ;;
+        esac
+      done
+}
+
+sweep_residue() {
+  local pids first=1
+  pids=$(residue_pids)
+  [ -z "$pids" ] && { ok "no residual processes"; return 0; }
+
+  for p in $pids; do
+    [ "$first" = 1 ] && { info "clearing residual processes:"; first=0; }
+    printf '      %s %s\n' "$p" "$(ps -o comm= -p "$p" 2>/dev/null | sed 's|.*/||')"
+    kill "$p" 2>/dev/null
+  done
+
+  # give them a moment, then force anything that ignored SIGTERM
+  local waited=0
+  while [ -n "$(residue_pids)" ] && [ "$waited" -lt 10 ]; do
+    sleep 1; waited=$((waited + 1))
+  done
+  for p in $(residue_pids); do
+    printf '      %s did not exit — forcing\n' "$p"
+    kill -9 "$p" 2>/dev/null
+  done
+
+  if [ -z "$(residue_pids)" ]; then ok "residual processes cleared"
+  else bad "still running: $(residue_pids | tr '\n' ' ')"; fi
+}
+
+wait_for() {  # wait_for <name> <fn> ; returns 1 on timeout
+  local name="$1" fn="$2" waited=0
+  printf '  %s…%s waiting for %s' "$DIM" "$OFF" "$name"
+  while ! "$fn"; do
+    if [ "$waited" -ge "$READY_TIMEOUT" ]; then
+      printf '\r'; bad "$name did not come up within ${READY_TIMEOUT}s"
+      return 1
+    fi
+    sleep 2; waited=$((waited + 2)); printf '.'
+  done
+  printf '\r                                                            \r'
+  ok "$name ready"
+}
+
+# Shutdown is not instant: launchctl bootout and brew services stop both return
+# before the process has finished exiting. Poll until it is really gone.
+wait_down() {  # wait_down <name> <fn> ; returns 1 if still up after STOP_TIMEOUT
+  local name="$1" fn="$2" waited=0
+  while "$fn"; do
+    if [ "$waited" -ge "$STOP_TIMEOUT" ]; then
+      bad "$name still responding after ${STOP_TIMEOUT}s"
+      return 1
+    fi
+    sleep 1; waited=$((waited + 1))
+  done
+  ok "$name stopped"
+}
+
+cmd_start() {
+  printf '%sStarting local AI stack%s\n' "$BOLD" "$OFF"
+
+  if need_brew; then
+    # Models default to sitting in RAM for 5 minutes after use. On a 32 GB
+    # machine a 30B model (~19 GB) squatting that long forces everything else
+    # into swap, so shorten it. This must be set here, not in brew's plist:
+    # 'brew services' regenerates that file from its formula on every start
+    # and silently drops any hand-added keys.
+    launchctl setenv OLLAMA_KEEP_ALIVE "$OLLAMA_KEEP_ALIVE" 2>/dev/null
+    if ollama_up; then
+      ok "Ollama already running"
+    else
+      brew services start ollama >/dev/null 2>&1
+      wait_for "Ollama" ollama_up || return 1
+    fi
+  fi
+
+  # ComfyUI is optional: only managed if its agent has been installed
+  if [ -f "$COMFY_PLIST" ]; then
+    agent_start "$COMFY_LABEL" "$COMFY_PLIST" "ComfyUI" comfy_up \
+      || info "ComfyUI did not start — check: myai logs comfy"
+  fi
+
+  if [ -f "$KOKORO_PLIST" ]; then
+    agent_start "$KOKORO_LABEL" "$KOKORO_PLIST" "Kokoro TTS" kokoro_up \
+      || info "Kokoro did not start — check: myai logs kokoro"
+  fi
+
+  agent_start "$WEBUI_LABEL" "$WEBUI_PLIST" "Open WebUI" webui_up \
+    || { info "check: myai logs"; return 1; }
+
+  local models
+  models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | paste -sd', ' -)
+  [ -n "$models" ] && info "models: $models" || info "no models pulled yet (ollama pull <model>)"
+
+  printf '  %s→%s %s\n' "$BOLD" "$OFF" "$WEBUI_URL"
+  open "$WEBUI_URL" 2>/dev/null || info "open $WEBUI_URL in your browser"
+}
+
+cmd_stop() {
+  printf '%sStopping local AI stack%s\n' "$BOLD" "$OFF"
+
+  agent_stop "$WEBUI_LABEL" "Open WebUI" webui_up
+
+  if [ -f "$COMFY_PLIST" ]; then
+    agent_stop "$COMFY_LABEL" "ComfyUI" comfy_up
+  fi
+
+  if [ -f "$KOKORO_PLIST" ]; then
+    agent_stop "$KOKORO_LABEL" "Kokoro TTS" kokoro_up
+  fi
+
+  if need_brew; then
+    brew services stop ollama >/dev/null 2>&1
+    wait_down "Ollama" ollama_up
+  fi
+
+  sweep_residue
+
+  local ports
+  ports=$(lsof -nP -iTCP:8080 -iTCP:11434 -iTCP:8188 -iTCP:8880 -sTCP:LISTEN -t 2>/dev/null | tr '\n' ' ')
+  if [ -n "$ports" ]; then bad "ports still bound by pid(s): $ports"; else ok "ports 8080/11434/8188/8880 released"; fi
+
+  info "stays stopped across reboots until: myai start"
+}
+
+# Back up the irreplaceable state only. Models are large but re-downloadable;
+# chats, users, RAG vectors and the service definitions are not.
+cmd_backup() {
+  local dest="${1:-$HOME/myai-backups}"
+  local stamp; stamp=$(date +%Y%m%dT%H%M%S)
+  local out="$dest/myai-$stamp.tar.gz"
+  mkdir -p "$dest" || { bad "cannot create $dest"; return 1; }
+
+  printf '%sBacking up local AI stack%s\n' "$BOLD" "$OFF"
+  info "chats/users/RAG live in a SQLite db — stopping Open WebUI for a consistent copy"
+  local was_up=0
+  if webui_up; then was_up=1; launchctl bootout "$GUI/$WEBUI_LABEL" 2>/dev/null; wait_down "Open WebUI" webui_up; fi
+
+  tar -czf "$out" \
+      -C "$HOME" .open-webui \
+      --exclude='.open-webui/venv' \
+      --exclude='.open-webui/cache' \
+      --exclude='.open-webui/logs' \
+      -C "$HOME/Library/LaunchAgents" \
+        com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist \
+      -C "$HOME/.local/bin" myai 2>/dev/null
+
+  if [ -f "$out" ]; then
+    ok "backup: $out ($(du -h "$out" | cut -f1))"
+  else
+    bad "backup failed"
+  fi
+
+  # keep the 7 most recent
+  local old; old=$(ls -1t "$dest"/myai-*.tar.gz 2>/dev/null | tail -n +8)
+  [ -n "$old" ] && { echo "$old" | xargs rm -f; info "pruned $(echo "$old" | wc -l | tr -d ' ') old backup(s)"; }
+
+  [ "$was_up" = 1 ] && { launchctl bootstrap "$GUI" "$WEBUI_PLIST" 2>/dev/null; wait_for "Open WebUI" webui_up; }
+  info "models are NOT backed up (re-pull with: ollama pull <name>)"
+}
+
+cmd_status() {
+  printf '%sLocal AI stack%s\n' "$BOLD" "$OFF"
+
+  if ollama_up; then
+    ok "Ollama    $OLLAMA_URL  ($(curl -fsS --max-time 2 "$OLLAMA_URL/api/version" 2>/dev/null))"
+  else
+    bad "Ollama    not running"
+  fi
+
+  if comfy_up; then
+    ok "ComfyUI   $COMFY_URL  (loopback only)"
+  elif [ -f "$COMFY_PLIST" ]; then
+    bad "ComfyUI   not running"
+  fi
+
+  if kokoro_up; then
+    ok "Kokoro TTS $KOKORO_URL  (loopback only)"
+  elif [ -f "$KOKORO_PLIST" ]; then
+    bad "Kokoro TTS not running"
+  fi
+
+  if webui_up; then
+    local lan
+    lan=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
+    ok "Open WebUI $WEBUI_URL"
+    [ -n "$lan" ] && info "LAN: http://${lan}:${WEBUI_PORT}"
+  else
+    bad "Open WebUI not running"
+  fi
+
+  printf '\n  %slaunchd%s\n' "$DIM" "$OFF"
+  launchctl list 2>/dev/null | grep -E 'openwebui|ollama|comfyui|kokoro' | sed 's/^/    /' || echo "    (no agents loaded)"
+
+  local models
+  models=$(ollama list 2>/dev/null | tail -n +2)
+  if [ -n "$models" ]; then
+    printf '\n  %smodels%s\n' "$DIM" "$OFF"; echo "$models" | sed 's/^/    /'
+  fi
+}
+
+cmd_logs() {
+  if [ "${1:-}" = "kokoro" ]; then
+    [ -d "$KOKORO_LOG_DIR" ] || { bad "no log directory at $KOKORO_LOG_DIR"; return 1; }
+    info "tailing $KOKORO_LOG_DIR (ctrl-c to exit)"
+    tail -n 50 -f "$KOKORO_LOG_DIR/stdout.log" "$KOKORO_LOG_DIR/stderr.log" 2>/dev/null
+  elif [ "${1:-}" = "comfy" ]; then
+    [ -d "$COMFY_LOG_DIR" ] || { bad "no log directory at $COMFY_LOG_DIR"; return 1; }
+    info "tailing $COMFY_LOG_DIR (ctrl-c to exit)"
+    tail -n 50 -f "$COMFY_LOG_DIR/stdout.log" "$COMFY_LOG_DIR/stderr.log" 2>/dev/null
+  else
+    [ -d "$LOG_DIR" ] || { bad "no log directory at $LOG_DIR"; return 1; }
+    info "tailing $LOG_DIR (ctrl-c to exit; 'myai logs comfy' for ComfyUI)"
+    tail -n 50 -f "$LOG_DIR/stdout.log" "$LOG_DIR/stderr.log" 2>/dev/null
+  fi
+}
+
+case "${1:-}" in
+  start)   cmd_start ;;
+  stop)    cmd_stop ;;
+  restart) cmd_stop; echo; cmd_start ;;
+  status)  cmd_status ;;
+  logs)    cmd_logs "${2:-}" ;;
+  backup)  cmd_backup "${2:-}" ;;
+  *)
+    cat <<EOF
+${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
+
+  myai start        start all services and open the browser
+  myai stop         stop all services (persists across reboots)
+  myai restart      stop then start
+  myai status       show what is running
+  myai logs         tail the Open WebUI logs
+  myai logs comfy   tail the ComfyUI logs
+  myai logs kokoro  tail the Kokoro TTS logs
+  myai backup [dir] back up chats/users/config (default ~/myai-backups)
+EOF
+    [ -n "${1:-}" ] && exit 1 || exit 0
+    ;;
+esac
