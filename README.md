@@ -7,6 +7,7 @@ A complete, self-hosted AI setup that runs on a single machine. Nothing is sent 
 provider. What it can do:
 
 - **Chat and reasoning** — a 30B mixture-of-experts model at conversational speed
+- **Work from the terminal** — `goose`, an agent in your shell driven by the same local models
 - **Agentic tool use** — the model decides when to read files, fetch a URL or recall a fact, and chains the calls itself
 - **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
 - **Inspect machines** — a read-only terminal for this computer and any SSH hosts you add: allowlisted commands, no shell, credential paths blocked
@@ -610,6 +611,82 @@ text. With Code Interpreter also on, a fetched page can influence code that runs
 machine. The terminal is far more resistant — an injected instruction still cannot get
 past the allowlist — but the safe habit is to keep browsing and execution in separate
 chats.
+
+---
+
+## goose — the same stack from your terminal
+
+Open WebUI is a browser. `goose` is an agent in your shell: it reads files, runs
+commands, checks its own output and iterates, driven by the local model. Nothing
+leaves the machine.
+
+```bash
+brew install block-goose-cli        # macOS
+# Linux: curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+./install.sh                        # writes ~/.config/goose/config.yaml
+```
+
+```bash
+cd ~/some-project
+goose                               # interactive session in this directory
+goose run -t "summarise the last 5 commits"     # one shot
+goose session --name lab            # a session you can return to
+goose session --resume              # pick the last one up
+```
+
+It asks before anything with side effects. `GOOSE_MODE=auto goose` lets it act
+unattended; `chat` turns tools off entirely.
+
+### Why it is worth having alongside the web UI
+
+| | Open WebUI | goose |
+|---|---|---|
+| Where | browser | your terminal, in the project directory |
+| Files | via MCP, scoped to `~/ai-workspace` | wherever you run it |
+| Shell | read-only, allowlisted | full, with confirmation |
+| Loop | answers, then stops | runs, reads the result, tries again |
+
+The terminal server in this repo is the safe surface the *model* is given inside
+the browser. goose is the one *you* drive, so it is allowed to be sharper.
+
+### Model choice matters more here than in chat
+
+Agentic work needs well-formed tool calls, turn after turn. Measured on this stack,
+asking each model to find the CPU core count:
+
+| Model | Result |
+|---|---|
+| `qwen3:30b-a3b` | ran `sysctl -n hw.ncpu`, answered correctly, first try |
+| `gpt-oss:20b` | emitted `raw='{"}'` — malformed tool call — and assumed Linux, reading `/proc/cpuinfo` on a Mac |
+
+The config ships with `gpt-oss:20b` as the stack's agentic default, but switch if it
+misbehaves:
+
+```bash
+sed -i '' 's/^GOOSE_MODEL:.*/GOOSE_MODEL: qwen3:30b-a3b/' ~/.config/goose/config.yaml
+# or per run:
+GOOSE_MODEL=qwen3:30b-a3b goose
+```
+
+Honest expectation: a 3B-active model is a capable assistant for "run this, read that,
+summarise", and will struggle on long tasks that need many constraints held at once.
+`GOOSE_MAX_TURNS: 30` is set so a stuck loop stops rather than grinding.
+
+### Extensions
+
+goose speaks MCP over stdio, so it uses the same servers as the browser stack directly —
+`mcpo` is only the HTTP bridge Open WebUI needs.
+
+| Extension | What it adds |
+|---|---|
+| `developer` | shell, file editing, search — goose's built-in |
+| `filesystem` | MCP filesystem, scoped to `~/ai-workspace` |
+| `fetch` | retrieve a URL |
+| `memory` | knowledge graph — **shipped disabled** |
+
+`memory` is off because with four extensions loaded, a 3B-active model began calling
+tools that had not been advertised and returned empty turns. Enable it in
+`~/.config/goose/config.yaml` once you are on something larger.
 
 ---
 

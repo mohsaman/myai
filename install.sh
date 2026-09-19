@@ -152,6 +152,21 @@ else
   fi
 fi
 
+# --- goose: the terminal agent, if it is installed ---------------------------
+if command -v goose >/dev/null 2>&1; then
+  GOOSE_CFG="$HOME/.config/goose/config.yaml"
+  if [ ! -f "$GOOSE_CFG" ] && [ -f "$HERE/goose/config.yaml.example" ]; then
+    mkdir -p "$(dirname "$GOOSE_CFG")"
+    sed "s|__HOME__|$HOME|g" "$HERE/goose/config.yaml.example" > "$GOOSE_CFG"
+    chmod 600 "$GOOSE_CFG"
+    ok "wrote $GOOSE_CFG"
+  else
+    info "goose config already present — left alone"
+  fi
+else
+  info "goose not installed — skip (brew install block-goose-cli)"
+fi
+
 printf '\n'
 ok "done"
 info "next:  myai start      then register the admin account in the browser"

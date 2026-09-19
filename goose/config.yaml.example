@@ -1,0 +1,66 @@
+# goose -> your local Ollama. No API key, no egress.
+#
+# install.sh copies this to ~/.config/goose/config.yaml, substituting __HOME__.
+# Install goose first:  brew install block-goose-cli
+#                       (or: curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash)
+#
+# GOOSE_MODE
+#   smart_approve  ask before anything with side effects, run read-only steps freely
+#   auto           act without asking
+#   chat           no tools at all
+#
+# On model choice: gpt-oss:20b is set here because it is the agentic default of
+# this stack, but it emits malformed tool calls under goose often enough to be
+# annoying. qwen3:30b-a3b has been more reliable in practice — switch with:
+#   sed -i '' 's/^GOOSE_MODEL:.*/GOOSE_MODEL: qwen3:30b-a3b/' ~/.config/goose/config.yaml
+#
+# The extensions below are MCP servers. goose speaks MCP over stdio directly,
+# so these are the same servers Open WebUI reaches through mcpo — no bridge.
+# 'memory' ships disabled: with four extensions loaded, a 3B-active model starts
+# calling tools that were not advertised. Enable it on a larger model.
+
+GOOSE_PROVIDER: ollama
+GOOSE_MODEL: gpt-oss:20b
+OLLAMA_HOST: http://localhost:11434
+GOOSE_MODE: smart_approve
+GOOSE_MAX_TURNS: 30
+GOOSE_TEMPERATURE: 0.2
+OLLAMA_TIMEOUT: 600
+extensions:
+  developer:
+    type: builtin
+    name: developer
+    enabled: true
+    display_name: Developer
+    timeout: 300
+  filesystem:
+    type: stdio
+    enabled: true
+    name: filesystem
+    cmd: npx
+    args:
+    - -y
+    - '@modelcontextprotocol/server-filesystem'
+    - __HOME__/ai-workspace
+    envs: {}
+    timeout: 300
+  fetch:
+    type: stdio
+    enabled: true
+    name: fetch
+    cmd: uvx
+    args:
+    - mcp-server-fetch
+    envs: {}
+    timeout: 300
+  memory:
+    type: stdio
+    enabled: false
+    name: memory
+    cmd: npx
+    args:
+    - -y
+    - '@modelcontextprotocol/server-memory'
+    envs:
+      MEMORY_FILE_PATH: __HOME__/mcpo/memory.json
+    timeout: 300
