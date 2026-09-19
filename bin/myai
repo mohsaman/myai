@@ -185,7 +185,9 @@ cmd_start() {
   local models; models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | paste -sd', ' -)
   [ -n "$models" ] && info "models: $models" || info "no models yet — ollama pull <model>"
   printf '  %s→%s %s\n' "$BOLD" "$OFF" "$WEBUI_URL"
-  "$OPENER" "$WEBUI_URL" >/dev/null 2>&1 || info "open $WEBUI_URL in your browser"
+  if [ -z "${MYAI_NO_OPEN:-}" ]; then
+    "$OPENER" "$WEBUI_URL" >/dev/null 2>&1 || info "open $WEBUI_URL in your browser"
+  fi
 }
 
 cmd_stop() {
