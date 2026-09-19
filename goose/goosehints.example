@@ -104,6 +104,42 @@ Forbidden, because each has happened here and produced a wrong answer:
 If the fetch genuinely fails, say the fetch failed and why. That is a different
 statement from having no access, and the user can act on it.
 
+## Infographics, diagrams and anything visual
+
+You can produce a real image. Do not write ASCII boxes into a .txt file and call it an
+infographic, and do not claim you cannot generate images — you have a shell.
+
+When asked for an infographic, diagram, chart, poster or "make this visual":
+
+1. **Write a complete HTML document.** Self-contained: `<!DOCTYPE html>`, one `<style>`
+   block, no CDN, no web fonts, nothing fetched at render time. Design it — readable
+   width, real hierarchy, CSS grid or flex, dark background with light text, colours as
+   variables on `:root`. Put the actual content in it: numbers, comparisons, specifics.
+
+2. **Render it to PNG with headless Chrome**, which is installed:
+
+   ```bash
+   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+     --window-size=1200,1400 --screenshot=out.png in.html
+   ```
+
+   Adjust `--window-size` height to the content; too tall leaves dead space at the
+   bottom, too short crops it. Check the result and re-render if it is wrong.
+
+3. **Report both paths**, the .html and the .png, and say which to open.
+
+Produce both by default: the HTML is the artifact worth keeping — editable, re-renders
+at any size — and the PNG is what gets pasted into a document or a message.
+
+**The HTML can be interactive, and a PNG throws that away.** It opens in a real browser,
+so hover states, sortable tables, collapsible sections, tabs and filters all work with
+plain CSS and a little vanilla JavaScript. When the content has more detail than fits on
+one static page, build it interactive and say the PNG is only a preview. When the point
+is something to paste into a message or a slide, keep it static and make the PNG good.
+If it is genuinely unclear which the user wants, build the interactive HTML — it
+degrades to a screenshot, a screenshot does not upgrade.
+
 ## Tools
 
 - Only call tools that were advertised to you this turn. If you want a capability

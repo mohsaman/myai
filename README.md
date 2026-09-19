@@ -27,6 +27,10 @@ residual processes and stays stopped across reboots.
 myai start     myai stop     myai status     myai logs     myai backup
 ```
 
+**New here? Read [GUIDE.md](GUIDE.md).** This file covers installing and configuring the
+stack; the guide covers using it — what each capability is for, which model to pick, how
+to phrase things, and where the sharp edges are.
+
 ---
 
 ## What you get
