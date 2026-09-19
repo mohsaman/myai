@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mcpo.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/mcpo/venv/bin/mcpo</string>
+        <string>--host</string><string>127.0.0.1</string>
+        <string>--port</string><string>8001</string>
+        <string>--api-key</string><string>__MCPO_APIKEY__</string>
+        <string>--cors-allow-origins</string><string>http://127.0.0.1:8080</string>
+        <string>--config</string><string>__HOME__/mcpo/config.json</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key><string>__HOME__</string>
+        <key>PATH</key><string>__BREW_BIN__:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>WorkingDirectory</key><string>__HOME__/mcpo</string>
+    <key>StandardOutPath</key><string>__HOME__/mcpo/logs/mcpo.log</string>
+    <key>StandardErrorPath</key><string>__HOME__/mcpo/logs/mcpo.log</string>
+</dict>
+</plist>

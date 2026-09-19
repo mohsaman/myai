@@ -3,8 +3,18 @@
 ![The stack at a glance](docs/infographic.png)
 
 
-A complete, self-hosted AI setup that runs on a single machine: chat, code, vision,
-image generation, speech synthesis and transcription. Nothing is sent to a provider.
+A complete, self-hosted AI setup that runs on a single machine. Nothing is sent to a
+provider. What it can do:
+
+- **Chat and reasoning** — a 30B mixture-of-experts model at conversational speed
+- **Agentic tool use** — the model decides when to read files, fetch a URL or recall a fact, and chains the calls itself
+- **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
+- **Read images** — screenshots, diagrams, tables and scanned documents
+- **Generate images** — SDXL on the local GPU
+- **Speak and listen** — neural text-to-speech in 72 voices, plus dictation
+- **Search the web** — with citations, only when you ask for it
+- **Remember** — a persistent knowledge graph that carries across conversations
+- **64k context** — long documents and long conversations stay in memory
 
 Runs on **macOS** (launchd, Metal) and **Linux** (systemd, CUDA) — same commands on both.
 
@@ -26,12 +36,15 @@ myai start     myai stop     myai status     myai logs     myai backup
 | **ComfyUI + SDXL** | Image generation on the GPU |
 | **Kokoro** | Neural text-to-speech, 72 voices, OpenAI-compatible API |
 | **faster-whisper** | Speech recognition (built into Open WebUI) |
+| **Jupyter** | The code interpreter's kernel — real Python, filesystem and network |
+| **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
 
 Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
 | `qwen3:30b-a3b` | 18 GB | Chat, reasoning, web search | 50.9 tok/s |
+| `gpt-oss:20b` | 13 GB | Agentic work — native tool calling | 28.8 tok/s |
 | `qwen2.5-coder:14b` | 9 GB | Code | 14.1 tok/s |
 | `qwen2.5vl:7b` | 6 GB | Vision (reads images) | 7.9 s/image |
 | `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
@@ -136,7 +149,24 @@ VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
 > `MODEL_DIR` and `VOICES_DIR` as absolute paths — the launch agent below sets them. Without
 > those you get `Read-only file system: '/app'`.
 
-### 5. Install myai and the launch agents
+### 5. Code interpreter and agentic tools
+
+A Python kernel for the code interpreter, and the MCP tool servers the model calls.
+
+```bash
+# Jupyter — the code interpreter's kernel
+python3 -m venv ~/jupyter/venv
+~/jupyter/venv/bin/pip install jupyter_server ipykernel numpy pandas matplotlib requests beautifulsoup4
+
+# mcpo — bridges MCP servers to Open WebUI
+python3 -m venv ~/mcpo/venv
+~/mcpo/venv/bin/pip install mcpo 'mcp<2'      # mcpo 0.0.x needs the mcp 1.x client API
+```
+
+The MCP servers themselves need `node`/`npx` and `uv`/`uvx` on PATH — they are fetched
+on first run. `install.sh` writes `~/mcpo/config.json` and generates both auth tokens.
+
+### 6. Install myai and the launch agents
 
 ```bash
 ./install.sh
@@ -145,7 +175,7 @@ VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
 That copies `myai` to `~/.local/bin`, generates the three launch agents from the templates
 with your home directory substituted, and loads them. Make sure `~/.local/bin` is on your PATH.
 
-### 6. Configure Open WebUI
+### 7. Configure Open WebUI
 
 ```bash
 myai start                     # register an admin account in the browser first
@@ -234,7 +264,24 @@ VIRTUAL_ENV="$HOME/kokoro/venv" uv pip install -e .
 ./venv/bin/python docker/scripts/download_model.py --output api/src/models/v1_0
 ```
 
-### 5. Install myai and the service units
+### 5. Code interpreter and agentic tools
+
+A Python kernel for the code interpreter, and the MCP tool servers the model calls.
+
+```bash
+# Jupyter — the code interpreter's kernel
+python3 -m venv ~/jupyter/venv
+~/jupyter/venv/bin/pip install jupyter_server ipykernel numpy pandas matplotlib requests beautifulsoup4
+
+# mcpo — bridges MCP servers to Open WebUI
+python3 -m venv ~/mcpo/venv
+~/mcpo/venv/bin/pip install mcpo 'mcp<2'      # mcpo 0.0.x needs the mcp 1.x client API
+```
+
+The MCP servers themselves need `node`/`npx` and `uv`/`uvx` on PATH — they are fetched
+on first run. `install.sh` writes `~/mcpo/config.json` and generates both auth tokens.
+
+### 6. Install myai and the service units
 
 ```bash
 ./install.sh                         # detects Linux, writes systemd user units
@@ -244,7 +291,7 @@ sudo loginctl enable-linger $USER    # so services survive logout and start at b
 Without lingering, systemd user units stop when your last session ends and do not start at
 boot. This is the Linux equivalent of launchd agents loading at login.
 
-### 6. Configure Open WebUI
+### 7. Configure Open WebUI
 
 ```bash
 myai start
@@ -367,6 +414,67 @@ reap. `myai stop` finds and clears it, then verifies the ports are released.
 
 ---
 
+## Agentic tools
+
+Out of the box a local model can only talk. These two services let it *act* — which is
+the difference between a chatbot and an assistant.
+
+### MCP tool servers
+
+[MCP](https://modelcontextprotocol.io) servers expose capabilities as callable tools.
+`mcpo` translates them into the OpenAPI that Open WebUI speaks, so the model can call
+them directly and chain several calls in one answer.
+
+| Server | Tools | What the model can do |
+|---|---|---|
+| `filesystem` | 14 | Read, write, move and search files under `~/ai-workspace` |
+| `fetch` | 1 | Retrieve a URL and read the page |
+| `memory` | 9 | Store and recall facts in a knowledge graph that survives between chats |
+| `time` | 2 | Current time, timezone conversion |
+
+Edit `~/mcpo/config.json` to add more. Anything in the MCP ecosystem works — git,
+databases, ticketing systems, your own scripts.
+
+> The filesystem server is deliberately scoped to a single directory. Widening it to
+> `$HOME` gives any prompt — including text pulled in by a web search — the ability to
+> read every file you own. Scope it narrowly and on purpose.
+
+### Code interpreter
+
+Open WebUI's default Python sandbox (Pyodide) runs in the browser: no filesystem, no
+network, no package installs. The Jupyter service replaces it with a real kernel, so
+generated code can read your data files, call local APIs, and use pandas, numpy and
+matplotlib.
+
+`myai status` reports both. Tokens live in `~/jupyter/.token` and `~/mcpo/.apikey`,
+mode `0600`, generated at install and never committed.
+
+---
+
+## Context length
+
+Ollama's default context is smaller than what modern models are trained for. `myai`
+sets it explicitly in the service definition:
+
+```
+OLLAMA_CONTEXT_LENGTH=65536
+```
+
+Bigger is not automatically better — the KV cache has to fit in GPU memory alongside
+the weights, or inference silently spills to the CPU and slows to a crawl. Work out
+your own ceiling before raising it:
+
+```
+KV bytes/token ≈ 2 × layers × kv_heads × head_dim     (1 byte/element at q8_0)
+```
+
+For a 30B MoE with 48 layers, 4 KV heads and head_dim 128, that is 48 KiB per token —
+so 64k costs 3 GB of cache on top of ~20 GB of weights. On a 32 GB Mac the GPU limit
+is roughly 24 GB, which 64k fits and 128k does not. Check with `ollama ps`: the
+`PROCESSOR` column must read `100% GPU`.
+
+---
+
 ## Security notes
 
 - **Ollama, ComfyUI and Kokoro bind to loopback only.** Only Open WebUI is exposed, and it
@@ -376,6 +484,13 @@ reap. `myai stop` finds and clears it, then verifies the ports are released.
 - **For access away from home, use a VPN** (Tailscale or similar) rather than port
   forwarding. A laptop's address changes; a tunnel doesn't, and nothing needs to be opened
   on your router.
+- **Jupyter and mcpo bind to loopback and require their own tokens**, generated at install
+  into `~/jupyter/.token` and `~/mcpo/.apikey` (mode `0600`). Neither is in this repo.
+- **Giving a model tools changes the threat model.** It can now write files and run code,
+  and it acts on text it did not get from you — a web page it fetched, a document you
+  uploaded. Treat anything it ingests as untrusted input. Keep the filesystem server scoped
+  to a working directory, and don't point it at `$HOME`, your keys or a source tree you
+  care about.
 
 ---
 

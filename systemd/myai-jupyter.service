@@ -1,0 +1,18 @@
+[Unit]
+Description=Jupyter kernel for the Open WebUI code interpreter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=__HOME__/jupyter/venv/bin/python -m jupyter_server \
+  --ServerApp.ip=127.0.0.1 --ServerApp.port=8888 \
+  --ServerApp.token=__JUPYTER_TOKEN__ \
+  --ServerApp.root_dir=__HOME__/jupyter/work \
+  --ServerApp.open_browser=False \
+  --ServerApp.allow_origin=http://127.0.0.1:8080 \
+  --ServerApp.disable_check_xsrf=True
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

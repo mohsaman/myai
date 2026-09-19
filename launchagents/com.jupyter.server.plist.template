@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jupyter.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/jupyter/venv/bin/python</string>
+        <string>-m</string>
+        <string>jupyter_server</string>
+        <string>--ServerApp.ip=127.0.0.1</string>
+        <string>--ServerApp.port=8888</string>
+        <string>--ServerApp.token=__JUPYTER_TOKEN__</string>
+        <string>--ServerApp.root_dir=__HOME__/jupyter/work</string>
+        <string>--ServerApp.open_browser=False</string>
+        <string>--ServerApp.allow_origin=http://127.0.0.1:8080</string>
+        <string>--ServerApp.disable_check_xsrf=True</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key><string>__HOME__/jupyter/logs/jupyter.log</string>
+    <key>StandardErrorPath</key><string>__HOME__/jupyter/logs/jupyter.log</string>
+</dict>
+</plist>
