@@ -162,7 +162,19 @@ a model reading a table badly, and acronym expansion is still unreliable.
 ### Make an infographic
 
 Ask for one and you get a rendered HTML page in Open WebUI's Artifacts panel — not ASCII
-art. In goose you get an HTML file plus a PNG rendered through headless Chrome.
+art. In goose you get an HTML file plus a PNG.
+
+You can render any HTML yourself the same way:
+
+```bash
+render-html page.html              # -> page.png, correctly sized
+render-html page.html out.png 1400 # explicit output and width
+```
+
+Chrome screenshots whatever window height you give it, so a hand-picked number leaves a
+third of the image empty or crops the bottom. `render-html` renders tall and trims the
+background afterwards — on a real example it went from 2800px with 40% dead space to
+1544px with none.
 
 The HTML can be interactive: hover states, sortable tables, collapsible sections, tabs.
 A PNG throws that away, so say which you want. If it is unclear, the interactive version

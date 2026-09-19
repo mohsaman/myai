@@ -116,16 +116,18 @@ When asked for an infographic, diagram, chart, poster or "make this visual":
    width, real hierarchy, CSS grid or flex, dark background with light text, colours as
    variables on `:root`. Put the actual content in it: numbers, comparisons, specifics.
 
-2. **Render it to PNG with headless Chrome**, which is installed:
+2. **Render it with `render-html`**, which is on your PATH:
 
    ```bash
-   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
-     --window-size=1200,1400 --screenshot=out.png in.html
+   render-html page.html            # -> page.png
+   render-html page.html out.png 1400   # explicit output and width
    ```
 
-   Adjust `--window-size` height to the content; too tall leaves dead space at the
-   bottom, too short crops it. Check the result and re-render if it is wrong.
+   Use this rather than calling Chrome yourself. Chrome screenshots whatever window
+   size you give it, so a hand-picked height leaves a third of the image as empty
+   background or crops the bottom off. `render-html` renders tall on purpose and
+   trims the background afterwards, so the size is always right without you having
+   to judge it.
 
 3. **Report both paths**, the .html and the .png, and say which to open.
 

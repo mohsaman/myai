@@ -27,6 +27,7 @@ mkdir -p "$BIN"
 install -m 0755 "$HERE/bin/myai" "$BIN/myai" && ok "installed $BIN/myai"
 # On PATH so an agent calls it as a command rather than reaching for a web tool.
 install -m 0755 "$HERE/scripts/fetch-specs.sh" "$BIN/fetch-specs" && ok "installed $BIN/fetch-specs"
+install -m 0755 "$HERE/scripts/render-html.sh" "$BIN/render-html" && ok "installed $BIN/render-html"
 case ":$PATH:" in
   *":$BIN:"*) ;;
   *) info "add to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
