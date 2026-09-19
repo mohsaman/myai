@@ -31,7 +31,8 @@ case ":$PATH:" in
 esac
 
 mkdir -p "$HOME/.open-webui/logs" "$HOME/ComfyUI/logs" "$HOME/kokoro/logs" \
-         "$HOME/jupyter/logs" "$HOME/jupyter/work" "$HOME/mcpo/logs" "$HOME/ai-workspace" 2>/dev/null
+         "$HOME/jupyter/logs" "$HOME/jupyter/work" "$HOME/mcpo/logs" \
+         "$HOME/terminal/logs" "$HOME/ai-workspace" 2>/dev/null
 
 # --- per-install secrets: generated once, never committed ---------------------
 secret() {  # secret <file>  — print it, creating it on first use
@@ -43,9 +44,16 @@ secret() {  # secret <file>  — print it, creating it on first use
   cat "$f"
 }
 JUPYTER_TOKEN="$(secret "$HOME/jupyter/.token")"
+TERMINAL_TOKEN="$(secret "$HOME/terminal/.token")"
 MCPO_APIKEY="$(secret "$HOME/mcpo/.apikey")"
 BREW_BIN="$(dirname "$(command -v brew 2>/dev/null || echo /opt/homebrew/bin/brew)")"
 TZ_NAME="$(readlink /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||')"; TZ_NAME="${TZ_NAME:-UTC}"
+
+# the terminal server's code lives in the repo; install it next to its venv
+if [ -f "$HERE/terminal/server.py" ]; then
+  install -m 0644 "$HERE/terminal/server.py" "$HOME/terminal/server.py"
+  ok "installed $HOME/terminal/server.py"
+fi
 
 # mcpo's server list — written once, then yours to edit
 if [ ! -f "$HOME/mcpo/config.json" ] && [ -f "$HERE/mcpo/config.json.template" ]; then
@@ -59,6 +67,7 @@ have_comfy()  { [ -f "$HOME/ComfyUI/main.py" ]; }
 have_kokoro() { [ -d "$HOME/kokoro/api" ]; }
 have_jupyter(){ [ -x "$HOME/jupyter/venv/bin/python" ]; }
 have_mcpo()   { [ -x "$HOME/mcpo/venv/bin/mcpo" ]; }
+have_terminal(){ [ -f "$HOME/terminal/server.py" ] && [ -x "$HOME/terminal/venv/bin/python" ]; }
 
 # --------------------------------------------------------------------- mac ---
 if [ "$OS" = mac ]; then
@@ -73,6 +82,7 @@ if [ "$OS" = mac ]; then
       com.kokoro.server)    have_kokoro || { info "skip $label (not installed)"; continue; } ;;
       com.jupyter.server)   have_jupyter|| { info "skip $label (not installed)"; continue; } ;;
       com.mcpo.server)      have_mcpo   || { info "skip $label (not installed)"; continue; } ;;
+      com.terminal.server)  have_terminal|| { info "skip $label (not installed)"; continue; } ;;
     esac
     out="$AGENTS/$label.plist"
     sed -e "s|__HOME__|$HOME|g" \
@@ -114,6 +124,7 @@ else
       myai-kokoro.service)    have_kokoro || { info "skip $unit (not installed)"; continue; } ;;
       myai-jupyter.service)   have_jupyter|| { info "skip $unit (not installed)"; continue; } ;;
       myai-mcpo.service)      have_mcpo   || { info "skip $unit (not installed)"; continue; } ;;
+      myai-terminal.service)  have_terminal|| { info "skip $unit (not installed)"; continue; } ;;
       myai-ollama.service)    command -v ollama >/dev/null 2>&1 || { info "skip $unit (ollama not installed)"; continue; } ;;
     esac
     sed -e "s|__HOME__|$HOME|g" -e "s|__OLLAMA__|$OLLAMA_BIN|g" \

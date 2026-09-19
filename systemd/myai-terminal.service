@@ -1,0 +1,14 @@
+[Unit]
+Description=Read-only terminal server for Open WebUI
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/terminal
+Environment=TERMINAL_ROOT=__HOME__
+ExecStart=__HOME__/terminal/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8002
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

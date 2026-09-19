@@ -9,6 +9,7 @@ provider. What it can do:
 - **Chat and reasoning** — a 30B mixture-of-experts model at conversational speed
 - **Agentic tool use** — the model decides when to read files, fetch a URL or recall a fact, and chains the calls itself
 - **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
+- **Inspect the machine** — a read-only terminal: allowlisted commands, no shell, credential paths blocked
 - **Read images** — screenshots, diagrams, tables and scanned documents
 - **Generate images** — SDXL on the local GPU
 - **Speak and listen** — neural text-to-speech in 72 voices, plus dictation
@@ -38,6 +39,7 @@ myai start     myai stop     myai status     myai logs     myai backup
 | **faster-whisper** | Speech recognition (built into Open WebUI) |
 | **Jupyter** | The code interpreter's kernel — real Python, filesystem and network |
 | **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
+| **terminal** | Read-only shell the model can query about the machine |
 
 Suggested models — swap freely, these are what the defaults assume:
 
@@ -161,6 +163,10 @@ python3 -m venv ~/jupyter/venv
 # mcpo — bridges MCP servers to Open WebUI
 python3 -m venv ~/mcpo/venv
 ~/mcpo/venv/bin/pip install mcpo 'mcp<2'      # mcpo 0.0.x needs the mcp 1.x client API
+
+# terminal — the read-only shell the model queries
+python3 -m venv ~/terminal/venv
+~/terminal/venv/bin/pip install fastapi 'uvicorn[standard]'
 ```
 
 The MCP servers themselves need `node`/`npx` and `uv`/`uvx` on PATH — they are fetched
@@ -276,6 +282,10 @@ python3 -m venv ~/jupyter/venv
 # mcpo — bridges MCP servers to Open WebUI
 python3 -m venv ~/mcpo/venv
 ~/mcpo/venv/bin/pip install mcpo 'mcp<2'      # mcpo 0.0.x needs the mcp 1.x client API
+
+# terminal — the read-only shell the model queries
+python3 -m venv ~/terminal/venv
+~/terminal/venv/bin/pip install fastapi 'uvicorn[standard]'
 ```
 
 The MCP servers themselves need `node`/`npx` and `uv`/`uvx` on PATH — they are fetched
@@ -475,6 +485,93 @@ is roughly 24 GB, which 64k fits and 128k does not. Check with `ollama ps`: the
 
 ---
 
+## Using the tools
+
+Everything below is off by default in a new chat. Open the **+** menu in the message
+box and switch on what you need — nothing attaches automatically, and a model with no
+tools will happily invent output rather than admit it cannot act.
+
+Use **GPT-OSS 20B** for anything involving tools. It is the model configured for native
+function calling, so it chooses tools itself instead of waiting to be told.
+
+### Terminal — ask about the machine
+
+Switch on **Terminal** and pick your machine. Then ask for the answer, not the command:
+
+```
+How much memory does this device have?
+Which volume is fullest?
+Is ComfyUI running, and how long has it been up?
+What did the last 50 lines of the mcpo log say?
+Which Ollama models are installed and how much disk do they use?
+Summarise the git status of ~/myai-stack.
+```
+
+**Read-only by design.** The server takes one command, runs it as an argv list with no
+shell, and only from an allowlist of inspection tools. So:
+
+| Asked for | What happens |
+|---|---|
+| `df -h`, `ps`, `launchctl list`, `git status` | runs |
+| `ls \| wc -l`, `cmd > file`, `a; b`, `$(cmd)` | refused — there is no shell to interpret them |
+| `rm`, `kill`, `sudo`, `curl`, `bash` | refused — not on the allowlist |
+| `git push`, `launchctl bootout`, `ollama rm` | refused — state-changing subcommand |
+| anything outside `TERMINAL_ROOT` | refused |
+| `~/.ssh`, `*.pem`, `.token`, `.apikey`, `.netrc` | refused — credential paths |
+
+One command per call. Ask for raw output and let the model interpret it, rather than
+trying to pipe.
+
+To widen or narrow the blast radius, edit `TERMINAL_ROOT` in the service definition
+(`~/Library/LaunchAgents/com.terminal.server.plist`, or the systemd unit) — pointing it
+at a single project directory is a reasonable default if you would rather not expose
+your whole home. The allowlist itself is the `ALLOWED` set at the top of
+`terminal/server.py`.
+
+### Code Interpreter — compute, plot, transform
+
+Switch on **Code Interpreter**. This is a real Jupyter kernel, so unlike the browser
+sandbox it ships with, generated code can read your files, install nothing it does not
+already have, and reach local services.
+
+```
+Parse ~/Downloads/usage.csv and plot the weekly totals.
+Work out how much KV cache a 48-layer model needs at 128k context.
+Convert every .png in ~/Desktop/shots to a single PDF.
+```
+
+It has numpy, pandas, matplotlib, requests and beautifulsoup4. Unlike the terminal, it is
+**not** restricted — Python there can do anything your user account can.
+
+### Tools — files, web, memory
+
+Switch on **Tools** and tick the servers you want:
+
+| Tool | Ask it |
+|---|---|
+| `filesystem` | "Write a summary of this conversation to notes.md" — scoped to `~/ai-workspace` |
+| `fetch` | "Read <url> and tell me what changed in this release" |
+| `memory` | "Remember that I prefer answers without preamble" — persists across chats |
+| `time` | "What time is it in Tokyo?" |
+
+### Choosing between them
+
+Terminal and Code Interpreter overlap. The rule of thumb:
+
+- **Terminal** for questions *about* the machine — safe, constrained, no side effects.
+- **Code Interpreter** for *work on data* — unrestricted, so reserve it for when you
+  actually need to compute or write something.
+
+### A word on mixing web and execution
+
+`fetch` pulls text written by someone else into the conversation, and a model acts on
+text. With Code Interpreter also on, a fetched page can influence code that runs on your
+machine. The terminal is far more resistant — an injected instruction still cannot get
+past the allowlist — but the safe habit is to keep browsing and execution in separate
+chats.
+
+---
+
 ## Security notes
 
 - **Ollama, ComfyUI and Kokoro bind to loopback only.** Only Open WebUI is exposed, and it
@@ -486,6 +583,10 @@ is roughly 24 GB, which 64k fits and 128k does not. Check with `ollama ps`: the
   on your router.
 - **Jupyter and mcpo bind to loopback and require their own tokens**, generated at install
   into `~/jupyter/.token` and `~/mcpo/.apikey` (mode `0600`). Neither is in this repo.
+- **The terminal is read-only on purpose.** No shell, an allowlist of inspection
+  commands, confined to `TERMINAL_ROOT`, and credential paths (`~/.ssh`, `*.pem`,
+  `.token`, `.netrc`) refused outright. Widening `ALLOWED` in `terminal/server.py`
+  turns it into a general shell — do that knowingly, not by accident.
 - **Giving a model tools changes the threat model.** It can now write files and run code,
   and it acts on text it did not get from you — a web page it fetched, a document you
   uploaded. Treat anything it ingests as untrusted input. Keep the filesystem server scoped
