@@ -8,3 +8,7 @@ mcpo/config.json
 mcpo/memory.json
 terminal/hosts.json
 terminal/server_ssh.py
+
+# a literal '~' directory: an agent running here with an unexpanded ~/path
+# creates one, and it is never something this repo should carry
+/~/
