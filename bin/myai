@@ -418,6 +418,42 @@ PYARGS
   esac
 }
 
+
+# ------------------------------------------------------------------ stats ---
+# ollama logs per-request timings; this turns them into something readable.
+OLLAMA_LOG="${OLLAMA_LOG:-/opt/homebrew/var/log/ollama.log}"
+[ "$OS" = linux ] && OLLAMA_LOG="${OLLAMA_LOG:-$HOME/.ollama/logs/server.log}"
+
+cmd_stats() {
+  local n="${1:-12}"
+  [ -r "$OLLAMA_LOG" ] || { bad "cannot read $OLLAMA_LOG"; return 1; }
+  printf '%sRecent generations%s  %s(%s)%s\n' "$BOLD" "$OFF" "$DIM" "$OLLAMA_LOG" "$OFF"
+  LOG="$OLLAMA_LOG" N="$n" python3 <<'PYSTATS'
+import os, re, pathlib
+text = pathlib.Path(os.environ["LOG"]).read_bytes().decode("utf-8", "replace")
+P = re.compile(r'task (\d+) \| prompt eval time =\s*([\d.]+) ms /\s*(\d+) tokens')
+E = re.compile(r'task (\d+) \|\s+eval time =\s*([\d.]+) ms /\s*(\d+) tokens.*?([\d.]+) tokens per second')
+prompt = {t: (float(ms), int(n)) for t, ms, n in P.findall(text)}
+evals  = {t: (float(ms), int(n), float(tps)) for t, ms, n, tps in E.findall(text)}
+tasks  = sorted(evals, key=int)[-int(os.environ["N"]):]
+if not tasks:
+    print("    no completed generations logged yet"); raise SystemExit
+print(f"    {'in':>7} {'out':>6} {'wait':>7} {'generate':>9} {'tok/s':>7}")
+rates = []
+for t in tasks:
+    p_ms, p_n = prompt.get(t, (0.0, 0))
+    e_ms, e_n, tps = evals[t]; rates.append(tps)
+    print(f"    {p_n:>7} {e_n:>6} {p_ms/1000:>6.1f}s {e_ms/1000:>8.1f}s {tps:>7.1f}")
+mid = sorted(rates)[len(rates)//2]
+print(f"\n    min {min(rates):.1f} · median {mid:.1f} · max {max(rates):.1f} tok/s   (n={len(rates)})")
+slow = [r for r in rates if r < max(rates) * 0.5]
+if slow:
+    print(f"    {len(slow)} run(s) under half peak — usually a model reload or two models competing for the GPU")
+PYSTATS
+  printf '\n  %sloaded now%s\n' "$DIM" "$OFF"
+  ollama ps 2>/dev/null | sed 's/^/    /'
+}
+
 case "${1:-}" in
   start)   cmd_start ;;
   stop)    cmd_stop ;;
@@ -426,6 +462,7 @@ case "${1:-}" in
   logs)    cmd_logs "${2:-}" ;;
   backup)  cmd_backup "${2:-}" ;;
   terminal) shift; cmd_terminal "$@" ;;
+  stats)   cmd_stats "${2:-}" ;;
   *)
     cat <<EOF
 ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
@@ -441,6 +478,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs mcpo    tail MCP tool server logs
   myai logs terminal tail terminal server logs
   myai backup [dir] back up chats/users/config (default ~/myai-backups)
+  myai stats [N]    timings for the last N generations (default 12)
 
   myai terminal list                     show terminal targets
   myai terminal add <name> <[user@]host> [--port N] [--key PATH] [--jump host]

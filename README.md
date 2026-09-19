@@ -563,6 +563,32 @@ at a single project directory is a reasonable default if you would rather not ex
 your whole home. The allowlist itself is the `ALLOWED` set at the top of
 `terminal/server.py`.
 
+### Measuring response time
+
+```
+myai stats        # last 12 generations
+myai stats 30     # last 30
+```
+
+Ollama logs per-request timings; `myai stats` turns them into a table. Reading it:
+
+| Column | Meaning |
+|---|---|
+| `in` | prompt tokens — the conversation plus any tool output fed in |
+| `out` | tokens generated |
+| `wait` | prompt evaluation, i.e. time before the first token appears |
+| `generate` | time spent producing the answer |
+| `tok/s` | generation rate |
+
+Two things the table makes visible that are otherwise invisible:
+
+- **Long outputs run slower per token.** Each new token attends over everything before
+  it, so a 1,800-token answer generates at a lower rate than a 20-token one — measured
+  here at 27 tok/s versus 31 on the same model.
+- **A run at well under half your peak rate is a symptom, not noise.** Almost always a
+  model being reloaded, or two models competing for GPU memory. `myai stats` prints
+  what is loaded underneath the table so the two can be read together.
+
 ### Remote machines over SSH
 
 The terminal reaches other machines too — a NAS, a lab box, a server — using the same
