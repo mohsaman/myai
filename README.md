@@ -792,6 +792,72 @@ Per-project hints are where this gets useful: put the architecture, the commands
 that matter and the mistakes to avoid in a `.goosehints` at the repo root, and every
 session starts knowing them.
 
+If you already maintain a `CLAUDE.md`, its contents transfer directly — the two files
+do the same job. Copy the role, standards and context sections into
+`~/.config/goose/.goosehints` and both tools behave consistently. Mind the cost: the
+file is injected into every session, so a 90-line hints file spends roughly 1,200
+tokens of a 32k window before you have typed anything.
+
+### Skills — shared with Claude Code
+
+goose loads skills from `~/.claude/skills`, the same directory Claude Code uses. If
+you already keep skills there, goose has them with no further setup — verified on
+this machine, where goose could describe a `3gpp-expert` skill it was never
+explicitly given.
+
+A skill is a directory with a `SKILL.md` whose YAML frontmatter carries a `name`
+and a `description`:
+
+```
+~/.claude/skills/
+  3gpp-expert/SKILL.md
+  ss7-expert/SKILL.md
+  sala-vty/SKILL.md
+```
+
+```markdown
+---
+name: my-domain
+description: >
+  What this covers and when to use it. The agent matches on this text, so list the
+  terms that should trigger it rather than describing it abstractly.
+---
+
+# Instructions the agent follows when the skill is active
+```
+
+You do not invoke a skill by name — mention the subject and the agent loads it. Check
+what is visible with:
+
+```bash
+goose run --no-session -t "List the skills available to you."
+```
+
+Two things worth knowing:
+
+- **The listing can be incomplete.** Asked to list its skills, the model returned ten
+  and omitted one it could describe perfectly well when asked directly. Ask about a
+  specific skill rather than concluding from a list.
+- **A skill supplies framing, not facts.** With a 3GPP expert skill loaded and a hints
+  file forbidding unverified spec citations, the model still produced a confident,
+  wrong clause reference. A skill makes a model *sound* like a domain expert well
+  before it makes it *right*. Treat every specific — spec clause, cause code, version
+  — as unverified.
+
+### Recipes, memory and subagents
+
+goose reads three more directories from the working tree:
+
+| Path | Purpose |
+|---|---|
+| `.goose/recipes` | parameterised, repeatable workflows — `goose recipe` |
+| `.goose/memory` | notes that persist between sessions |
+| `.goose/agents` | subagent definitions, used by the `summon` extension |
+
+Recipes are the useful one for anything you run more than twice: a recipe fixes the
+prompt and the extensions so the task runs the same way each time, instead of being
+re-improvised.
+
 ### Extensions
 
 goose speaks MCP over stdio, so it uses the same servers as the browser stack directly —
