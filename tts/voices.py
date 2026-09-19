@@ -54,6 +54,26 @@ PREFERRED_LOCALE = {
     "nl": "nl_NL",
 }
 
+# Voices picked by measurement rather than by the catalogue's ordering.
+#
+# Quality is the only ranking signal the catalogue carries, and it is coarse:
+# all five Persian voices are "medium", so the sort fell through to the voice
+# key and chose fa_IR-amir-medium -- which measured worst of the five by a wide
+# margin. Where a language has been tested, the result belongs here.
+#
+# Method, so these can be re-derived or challenged: synthesise a fixed set of
+# sentences with each candidate, transcribe them back with Whisper large-v3,
+# and compare word error rates. Splitting the sentences into a control set and
+# one that stresses a suspected weakness is what makes the number diagnostic
+# rather than just a ranking.
+#
+#   fa: measured 2026-09-19 over 5 control + 5 qaf/ghayn sentences.
+#       ganji 12.3% overall, gyro 14.1%, ganji_adabi 14.7%,
+#       amir 28.8%, reza_ibrahim 33.2%.
+MEASURED_BEST = {
+    "fa": "fa_IR-ganji-medium",
+}
+
 _lock = threading.Lock()
 _catalog: Optional[dict] = None
 
@@ -100,6 +120,11 @@ def pick_voice(lang: str) -> Optional[str]:
     if not candidates:
         return None
 
+    # A measured result beats the catalogue's own ordering.
+    best = MEASURED_BEST.get(lang)
+    if best and any(k == best for k, _ in candidates):
+        return best
+
     preferred = PREFERRED_LOCALE.get(lang)
     if preferred:
         exact = [c for c in candidates if c[1]["language"]["code"] == preferred]
@@ -124,9 +149,12 @@ def ensure_voice(lang: str, download: bool = True) -> Optional[str]:
     The first request in a new language pays the download — around 60 MB, ten to
     thirty seconds on a normal connection. Every request after it is local.
     """
-    for key in installed():
-        if key.split("_")[0] == lang:
-            return key
+    have = [k for k in installed() if k.split("_")[0] == lang]
+    if have:
+        # installed() is sorted, so without this the alphabetically-first voice
+        # wins -- which for Persian is the one that measured worst.
+        best = MEASURED_BEST.get(lang)
+        return best if best in have else have[0]
 
     voice = pick_voice(lang)
     if not voice:
