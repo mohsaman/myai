@@ -13,6 +13,7 @@ VISION_MODEL="${VISION_MODEL:-qwen2.5vl:7b}"
 EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
 CODE_MODEL="${CODE_MODEL:-qwen2.5-coder:14b}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
+STT_MODEL="${STT_MODEL:-small}"
 
 read -rp "Open WebUI admin email: " EMAIL
 read -rsp "Open WebUI admin password: " PASSWORD; echo
@@ -25,7 +26,7 @@ TOKEN=$(curl -fsS --max-time 20 -X POST "$BASE/api/v1/auths/signin" \
 [ -z "$TOKEN" ] && { echo "sign-in failed"; exit 1; }
 echo "signed in"
 
-export BASE TOKEN TASK_MODEL CHAT_MODEL VISION_MODEL EMBED_MODEL CODE_MODEL TTS_VOICE
+export BASE TOKEN TASK_MODEL CHAT_MODEL VISION_MODEL EMBED_MODEL CODE_MODEL TTS_VOICE STT_MODEL
 python3 <<'PY'
 import os, json, urllib.request, urllib.error
 BASE, TOKEN = os.environ["BASE"], os.environ["TOKEN"]
@@ -52,19 +53,24 @@ def task_model():
     call("/api/v1/tasks/config/update", c)
 try_("task model -> " + os.environ["TASK_MODEL"], task_model)
 
-# 2. Text-to-speech via local Kokoro (speaks the OpenAI protocol).
+# 2. Text-to-speech via the local router, which picks an engine per language.
+#    Pointing straight at Kokoro (8880) also works, but then only its eight
+#    languages are speakable and everything else is read with an English accent.
 def tts():
     c = call("/api/v1/audio/config")
     c["tts"].update({
         "ENGINE": "openai",
-        "OPENAI_API_BASE_URL": "http://127.0.0.1:8880/v1",
+        "OPENAI_API_BASE_URL": "http://127.0.0.1:8881/v1",
         "OPENAI_API_KEY": "local",
         "MODEL": "kokoro",
         "VOICE": os.environ["TTS_VOICE"],
     })
-    c["stt"].update({"ENGINE": "", "WHISPER_MODEL": "small"})  # "" = local faster-whisper
+    # "" selects Open WebUI's bundled faster-whisper. small is fast and fine for
+    # English; non-Latin languages transcribe noticeably better on medium.
+    c["stt"].update({"ENGINE": "", "WHISPER_MODEL": os.environ["STT_MODEL"]})
     call("/api/v1/audio/config/update", c)
-try_("tts -> local kokoro, stt -> local whisper (small)", tts)
+try_("tts -> local router (per-language), stt -> local whisper (%s)"
+     % os.environ["STT_MODEL"], tts)
 
 # 3. Image generation via local ComfyUI.
 def images():
