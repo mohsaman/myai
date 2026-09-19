@@ -9,7 +9,7 @@
         <string>__HOME__/terminal/venv/bin/python</string>
         <string>-m</string>
         <string>uvicorn</string>
-        <string>server:app</string>
+        <string>server_ssh:app</string>
         <string>--host</string><string>127.0.0.1</string>
         <string>--port</string><string>8002</string>
     </array>
@@ -19,7 +19,9 @@
         <key>PATH</key><string>__BREW_BIN__:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <!-- Everything the terminal can reach. Narrow this to a work directory
              if you do not want your whole home readable. -->
-        <key>TERMINAL_ROOT</key><string>__HOME__</string>
+        <!-- server_ssh adds named SSH hosts from hosts.json; server:app is
+         the same thing minus remote access, if you prefer that. -->
+    <key>TERMINAL_ROOT</key><string>__HOME__</string>
     </dict>
     <key>WorkingDirectory</key><string>__HOME__/terminal</string>
     <key>RunAtLoad</key><true/>

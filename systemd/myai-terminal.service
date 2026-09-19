@@ -6,7 +6,8 @@ After=network.target
 Type=simple
 WorkingDirectory=__HOME__/terminal
 Environment=TERMINAL_ROOT=__HOME__
-ExecStart=__HOME__/terminal/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8002
+Environment=TERMINAL_HOSTS=__HOME__/terminal/hosts.json
+ExecStart=__HOME__/terminal/venv/bin/python -m uvicorn server_ssh:app --host 127.0.0.1 --port 8002
 Restart=always
 RestartSec=3
 
