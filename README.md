@@ -578,6 +578,43 @@ at a single project directory is a reasonable default if you would rather not ex
 your whole home. The allowlist itself is the `ALLOWED` set at the top of
 `terminal/server.py`.
 
+### Turning it into a domain expert
+
+A system prompt makes a model *sound* expert. It does not make it correct. Asked
+which EMM cause an MME returns when the HSS answers `DIAMETER_ERROR_USER_UNKNOWN`,
+a 30B model with a 3GPP expert skill loaded and a hints file forbidding unverified
+citations answered **"#1, TS 24.301 section 9.9.2.1"**. Both halves were wrong, and
+it said so with complete confidence.
+
+The fix is not a better prompt. It is giving the model the document.
+
+```bash
+./scripts/fetch-specs.sh 24.301 29.272 23.401   # 3GPP
+./scripts/fetch-specs.sh RFC6733 RFC9260        # IETF
+./scripts/fetch-specs.sh --have                 # what is local
+```
+
+Documents land in `~/specs` as plain text, one file each — a 3GPP TS is a couple of
+MB and about 46,000 lines. The answer the model invented is one grep away:
+
+```
+$ grep -n "IMSI unknown in HSS" ~/specs/3GPP-24.301.txt
+4205:	#2	(IMSI unknown in HSS)
+```
+
+The `standards-lookup` skill in `goose/skills/` wires this into the agent: work out
+which document the question needs, fetch it if it is not local, grep it, quote it,
+and cite the line. Its first rule is never to cite a clause it has not grepped.
+
+**Grep beats embeddings for this.** Spec lookup is exact — you want clause 9.9.3.9,
+not something semantically adjacent. A vector search over chunked specifications
+returns passages that *feel* relevant; grep returns the line, and the line is the
+answer.
+
+Everything here is openly published: 3GPP specifications are free from 3gpp.org
+without registration, RFCs are public domain. The corpus is fetched at runtime into
+`~/specs`, outside the repository — no standards text is redistributed here.
+
 ### Measuring response time
 
 ```
@@ -849,10 +886,10 @@ independently.
 ./scripts/sync-skills.sh --force   # re-copy, replacing goose's versions
 ```
 
-Copying the files is not sufficient, which is the part worth knowing. Skills contain
-hardcoded paths: `sala-vty` keeps its knowledge registry, per-node grammars and
-interaction log under its own skill home. A plain `cp` leaves goose reading — and
-**writing** — Claude's tree while looking independent. The script rewrites those paths
+Copying the files is not sufficient, which is the part worth knowing. A skill that
+keeps state — a knowledge file, a cache, a log — writes it under its own skill home,
+and that path is written inside the skill. A plain `cp` therefore leaves goose reading
+and **writing** Claude's tree while looking independent. The script rewrites those paths
 and then verifies no file under goose's root still refers to `.claude`. It also drops
 `.git` and any `cache/` of cloned repos, which took one skill from 435 MB to 2.4 MB.
 

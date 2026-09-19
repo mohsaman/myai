@@ -5,10 +5,10 @@
 # ~/.claude/skills if that exists. Names are de-duplicated and ~/.agents wins, so
 # copying a skill across makes goose use its copy and ignore Claude's.
 #
-# Copying the files is not enough. Skills contain hardcoded paths — sala-vty, for
-# example, keeps its knowledge registry and interaction log under its skill home —
-# and a plain copy leaves goose reading and WRITING Claude's tree while appearing
-# independent. This rewrites those paths so the copy is genuinely self-contained.
+# Copying the files is not enough. A skill that keeps state — a knowledge file, a
+# cache, a log — writes it under its own skill home, and that path is written inside
+# the skill. A plain copy therefore leaves goose reading and WRITING Claude's tree
+# while appearing independent. This rewrites those paths so the copy is self-contained.
 #
 #   ./scripts/sync-skills.sh           # copy any skill not already in goose's root
 #   ./scripts/sync-skills.sh --force   # re-copy, overwriting goose's versions
