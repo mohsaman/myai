@@ -1,0 +1,10 @@
+# The router itself. Piper and Kokoro each live in their own environment.
+fastapi
+uvicorn
+httpx
+pydantic
+piper-tts
+# Language detection. lingua is chosen over langdetect/langid because it stays
+# accurate on the short strings a chat reply is made of, where the others need
+# a paragraph before they settle.
+lingua-language-detector

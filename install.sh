@@ -35,7 +35,8 @@ esac
 
 mkdir -p "$HOME/.open-webui/logs" "$HOME/ComfyUI/logs" "$HOME/kokoro/logs" \
          "$HOME/jupyter/logs" "$HOME/jupyter/work" "$HOME/mcpo/logs" \
-         "$HOME/terminal/logs" "$HOME/ai-workspace" 2>/dev/null
+         "$HOME/terminal/logs" "$HOME/piper/logs" "$HOME/piper/voices" \
+         "$HOME/ai-workspace" 2>/dev/null
 
 # --- per-install secrets: generated once, never committed ---------------------
 secret() {  # secret <file>  — print it, creating it on first use
@@ -61,6 +62,13 @@ done
 # uvicorn imports by module name, which cannot contain a hyphen.
 [ -f "$HOME/terminal/server-ssh.py" ] && ln -sf server-ssh.py "$HOME/terminal/server_ssh.py"
 
+# the TTS router's code lives in the repo; install it next to Piper's venv
+for f in router.py voices.py; do
+  [ -f "$HERE/tts/$f" ] || continue
+  install -m 0644 "$HERE/tts/$f" "$HOME/piper/$f"
+  ok "installed $HOME/piper/$f"
+done
+
 # host list: the template ships, the real one is yours and stays out of git
 if [ ! -f "$HOME/terminal/hosts.json" ] && [ -f "$HERE/terminal/hosts.json.example" ]; then
   install -m 0600 "$HERE/terminal/hosts.json.example" "$HOME/terminal/hosts.json"
@@ -80,6 +88,7 @@ have_kokoro() { [ -d "$HOME/kokoro/api" ]; }
 have_jupyter(){ [ -x "$HOME/jupyter/venv/bin/python" ]; }
 have_mcpo()   { [ -x "$HOME/mcpo/venv/bin/mcpo" ]; }
 have_terminal(){ [ -f "$HOME/terminal/server.py" ] && [ -x "$HOME/terminal/venv/bin/python" ]; }
+have_tts()    { [ -f "$HOME/piper/router.py" ] && [ -x "$HOME/piper/venv/bin/python" ]; }
 
 # --------------------------------------------------------------------- mac ---
 if [ "$OS" = mac ]; then
@@ -95,6 +104,7 @@ if [ "$OS" = mac ]; then
       com.jupyter.server)   have_jupyter|| { info "skip $label (not installed)"; continue; } ;;
       com.mcpo.server)      have_mcpo   || { info "skip $label (not installed)"; continue; } ;;
       com.terminal.server)  have_terminal|| { info "skip $label (not installed)"; continue; } ;;
+      com.ttsrouter.server) have_tts    || { info "skip $label (not installed)"; continue; } ;;
     esac
     out="$AGENTS/$label.plist"
     sed -e "s|__HOME__|$HOME|g" \
@@ -137,6 +147,7 @@ else
       myai-jupyter.service)   have_jupyter|| { info "skip $unit (not installed)"; continue; } ;;
       myai-mcpo.service)      have_mcpo   || { info "skip $unit (not installed)"; continue; } ;;
       myai-terminal.service)  have_terminal|| { info "skip $unit (not installed)"; continue; } ;;
+      myai-tts-router.service) have_tts   || { info "skip $unit (not installed)"; continue; } ;;
       myai-ollama.service)    command -v ollama >/dev/null 2>&1 || { info "skip $unit (ollama not installed)"; continue; } ;;
     esac
     sed -e "s|__HOME__|$HOME|g" -e "s|__OLLAMA__|$OLLAMA_BIN|g" \

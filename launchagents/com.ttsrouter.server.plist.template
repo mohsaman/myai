@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ttsrouter.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/piper/venv/bin/python</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>router:app</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8881</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__HOME__/piper/venv/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>__HOME__/piper</string>
+        <key>KOKORO_URL</key>
+        <string>http://127.0.0.1:8880</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/piper</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/piper/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/piper/logs/stderr.log</string>
+</dict>
+</plist>

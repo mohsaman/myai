@@ -1,0 +1,18 @@
+[Unit]
+Description=TTS language router (myai)
+# Kokoro is the backend for eight of the languages, so starting after it
+# avoids a spell of 502s on boot. The router survives it being down either way.
+After=network.target myai-kokoro.service
+Wants=myai-kokoro.service
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/piper
+ExecStart=__HOME__/piper/venv/bin/python -m uvicorn router:app --host 127.0.0.1 --port 8881
+Environment="PYTHONPATH=__HOME__/piper"
+Environment="KOKORO_URL=http://127.0.0.1:8880"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
