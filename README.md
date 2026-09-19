@@ -1,5 +1,8 @@
 # myai — a local AI stack for macOS and Linux
 
+![The stack at a glance](docs/infographic.png)
+
+
 A complete, self-hosted AI setup that runs on a single machine: chat, code, vision,
 image generation, speech synthesis and transcription. Nothing is sent to a provider.
 
@@ -386,6 +389,18 @@ reap. `myai stop` finds and clears it, then verifies the ports are released.
 | Image generation slow and getting slower | Models thrashing memory. Check the Task Model setting and `OLLAMA_KEEP_ALIVE`. |
 | Ollama pull stuck at 100% | Kill and re-run the same pull; it resumes and finalises. |
 | Document upload: *"The content provided is empty"* | Text extraction returned nothing. Check the file has selectable text; scanned PDFs need OCR. |
+
+---
+
+## Diagram source
+
+The image above is rendered from [`docs/infographic.html`](docs/infographic.html).
+Open it in a browser to view or edit, then re-render with:
+
+```bash
+chrome --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \\
+  --window-size=1200,1520 --screenshot=docs/infographic.png docs/infographic.html
+```
 
 ---
 

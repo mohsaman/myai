@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Local AI Stack</title>
+<style>
+  :root{
+    --bg:#0b0f1e; --panel:#151d34; --line:#2a3454;
+    --ink:#f1f5ff; --dim:#9aa6c7; --accent:#6ee7b7; --accent2:#7dd3fc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{width:1200px;margin:0 auto;padding:64px 64px 48px}
+
+  h1{margin:0;font-size:52px;letter-spacing:-1.8px;line-height:1.06;max-width:900px}
+  h1 span{color:var(--accent)}
+  .sub{margin-top:18px;color:var(--dim);font-size:20px;line-height:1.55;max-width:780px}
+
+  h2{font-size:12px;letter-spacing:2.4px;text-transform:uppercase;color:var(--accent2);
+     margin:52px 0 22px;font-weight:700}
+
+  .comp{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .c{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px}
+  .cn{font-size:15px;font-weight:650;color:var(--accent2);margin-bottom:6px}
+  .cd{font-size:13px;color:var(--dim);line-height:1.5}
+
+  .stack{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  .s{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px}
+  .s .t{font-size:19px;font-weight:650;margin-bottom:8px}
+  .s .t em{font-style:normal;color:var(--accent);font-size:15px;font-weight:500;margin-left:8px}
+  .s .d{font-size:15px;color:var(--dim);line-height:1.6}
+
+  .nums{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:22px}
+  .n{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px}
+  .n .v{font-size:38px;font-weight:700;letter-spacing:-1.4px;color:var(--accent)}
+  .n .v small{font-size:16px;font-weight:500;color:var(--dim);margin-left:4px}
+  .n .l{font-size:14px;color:var(--dim);margin-top:6px;line-height:1.5}
+
+  .close{margin-top:52px;padding:30px 34px;border-radius:16px;
+         background:linear-gradient(90deg,rgba(110,231,183,.10),rgba(125,211,252,.05));
+         border:1px solid var(--line)}
+  .close p{margin:0;font-size:19px;line-height:1.6;color:var(--ink);max-width:930px}
+  .close p b{color:var(--accent)}
+  .close .note{margin-top:14px;font-size:14px;color:var(--dim);line-height:1.55}
+
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);
+         color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>A complete AI stack, running on <span>one laptop</span></h1>
+  <div class="sub">Chat, code, vision, image generation and speech — built from open-weight
+    models on a 32 GB machine. Nothing is sent to a provider.</div>
+
+  <h2>The stack</h2>
+  <div class="comp">
+    <div class="c"><div class="cn">Ollama</div><div class="cd">Runs the language models and serves them locally</div></div>
+    <div class="c"><div class="cn">Open WebUI</div><div class="cd">The browser interface — chat, files, voice, model switching</div></div>
+    <div class="c"><div class="cn">ComfyUI + SDXL</div><div class="cd">Image generation on the laptop's GPU</div></div>
+    <div class="c"><div class="cn">Kokoro</div><div class="cd">Neural text-to-speech, 72 voices</div></div>
+    <div class="c"><div class="cn">Whisper</div><div class="cd">Speech recognition for dictation</div></div>
+  </div>
+
+  <h2>The models</h2>
+  <div class="stack">
+    <div class="s">
+      <div class="t">Reasoning <em>30B Mixture-of-Experts</em></div>
+      <div class="d">The main conversational model. 30 billion parameters in total, but only
+        about 3 billion activate for any given word — which is how a large model stays fast
+        on consumer hardware.</div>
+    </div>
+    <div class="s">
+      <div class="t">Vision <em>7B</em></div>
+      <div class="d">Reads images. Paste a screenshot, a diagram or a table and ask questions
+        about what's in it, rather than describing it yourself.</div>
+    </div>
+    <div class="s">
+      <div class="t">Code <em>14B</em></div>
+      <div class="d">A separate model trained on source code, for writing and reviewing it.
+        Meaningfully better at this than the general model.</div>
+    </div>
+    <div class="s">
+      <div class="t">Images &amp; speech <em>SDXL + neural TTS</em></div>
+      <div class="d">Generates pictures from a text prompt, and reads answers aloud in a
+        natural voice. Both run on the laptop's GPU alongside everything else.</div>
+    </div>
+  </div>
+
+  <h2>Measured on the machine</h2>
+  <div class="nums">
+    <div class="n"><div class="v">51<small>tok/s</small></div><div class="l">Conversation speed — faster than most people read</div></div>
+    <div class="n"><div class="v">8<small>sec</small></div><div class="l">To look at an image and describe it</div></div>
+    <div class="n"><div class="v">42<small>sec</small></div><div class="l">To generate a 1024×1024 image</div></div>
+    <div class="n"><div class="v">1<small>sec</small></div><div class="l">To speak a sentence aloud</div></div>
+  </div>
+
+  <div class="close">
+    <p>Every prompt, document, image and recording stays on the machine.
+      <b>For regulated data, a physical guarantee is a different thing entirely from a
+      contractual one.</b></p>
+    <div class="note">Honest limits: frontier models remain better at long, multi-step reasoning,
+      and the context window is bounded by memory. Web search is the one feature that sends
+      anything outward — and only when asked.</div>
+  </div>
+
+  <footer>Open-weight models · consumer Apple Silicon · 32 GB unified memory</footer>
+
+</div>
+</body>
+</html>
