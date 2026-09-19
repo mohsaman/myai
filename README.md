@@ -844,14 +844,17 @@ one by name — mention the subject and it loads.
 
 ```markdown
 ---
-name: mme-workspace
+name: my-project
 description: >
-  Working on the Rust MME workspace at ~/myaimme. Use whenever the user mentions
-  the MME workspace, myaimme, or asks to build, check or extend those crates.
+  Working on the payments service in ~/work/payments. Use whenever the user
+  mentions the payments service, its crates, or asks to build or extend it.
 ---
 
 # Instructions the agent follows when this skill is active
 ```
+
+Two skills ship here: `standards-lookup`, which is ready to use, and
+`example-project`, a template to copy for your own projects.
 
 goose reads skills from these roots:
 

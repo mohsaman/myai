@@ -1,63 +1,76 @@
 ---
 name: standards-lookup
 description: >
-  Answering any question that involves a 3GPP specification, an IETF RFC, a spec
-  clause number, a cause code, an AVP, an information element, a protocol message
-  or a procedure. Use whenever the user mentions TS/TR numbers, RFC numbers, EMM
-  or ESM causes, Diameter result codes, MAP operations, NAS messages, S1AP, GTP,
-  SCCP, or asks "what does the spec say". Fetches the real document and quotes it
-  rather than answering from memory.
+  Answering any question involving a 3GPP specification, an IETF RFC, a spec clause
+  number, a cause code, an AVP, an information element, a protocol message or a
+  procedure. Use whenever the user mentions TS/TR numbers, RFC numbers, EMM or ESM
+  causes, Diameter result codes, MAP operations, NAS messages, S1AP, GTP or SCCP,
+  or asks what the spec says. Reads the real document and quotes it instead of
+  answering from memory.
 ---
 
 # Standards lookup
 
-You have a local corpus of standards documents and a fetcher. **Use them.** Do not
-answer a specification question from memory, and never invent a clause number.
+Answer specification questions from the document, never from memory. You have a
+local corpus and a command that fills it.
 
-A model asked which EMM cause corresponds to `DIAMETER_ERROR_USER_UNKNOWN` answered
-"#1, TS 24.301 section 9.9.2.1" with complete confidence. Both halves were wrong.
-The real answer is one grep away:
+## Use the shell. Do not use a web or fetch tool for this.
+
+The command is **`fetch-specs`** and it is on your PATH. Run it with the shell tool.
+
+```bash
+fetch-specs --have          # what is already local
+fetch-specs 24.301          # fetch a 3GPP TS
+fetch-specs 29.272 23.401   # several at once
+fetch-specs RFC6733         # fetch an IETF RFC
+```
+
+**Do not download standards documents with a fetch, browser or HTTP tool.** That
+path is wrong in three ways and has already produced a wrong answer here:
+
+- A 3GPP specification is published as a `.zip` containing a Word file. A fetch tool
+  returns bytes you cannot read.
+- The directory holds every version ever published. Picking a URL by hand gets an
+  old one — a previous attempt pulled `24301-900.zip`, a Release 9 document from
+  2009, when the current release is many years newer. `fetch-specs` always takes the
+  newest.
+- The result would not be saved, so the next question re-downloads it.
+
+`fetch-specs` handles the archive, the conversion to text, the version selection and
+the caching. Call it and then read the file it wrote.
+
+## Procedure
+
+1. **`fetch-specs --have`** — see what is already local.
+2. **`fetch-specs <id>`** — fetch anything missing. Work out which document the
+   question needs; the command resolves where it lives. A 3GPP TS takes under a
+   minute. Fetch it rather than guess.
+3. **Grep the file, then read around the hit** for context.
+4. **Quote what you found and cite the line.**
+
+```bash
+grep -n "IMSI unknown" ~/specs/3GPP-24.301.txt
+sed -n '4195,4215p' ~/specs/3GPP-24.301.txt     # the surrounding table
+grep -n "^9\.9\.3\.9" ~/specs/3GPP-24.301.txt   # a specific clause
+```
+
+## Why this exists
+
+Asked which EMM cause an MME returns when the HSS answers
+`DIAMETER_ERROR_USER_UNKNOWN`, a model answered **"#1, TS 24.301 section 9.9.2.1"**
+with complete confidence. Both halves were wrong. The truth is one line:
 
 ```
 $ grep -n "IMSI unknown in HSS" ~/specs/3GPP-24.301.txt
 4205:	#2	(IMSI unknown in HSS)
 ```
 
-That is the difference between sounding expert and being useful.
-
-## Procedure
-
-**1. See what is already local.**
-
-```bash
-~/myai-stack/scripts/fetch-specs.sh --have
-```
-
-**2. Fetch what you need if it is missing.** Work out the right document yourself
-from the question — the fetcher resolves where it lives.
-
-```bash
-~/myai-stack/scripts/fetch-specs.sh 24.301        # 3GPP TS
-~/myai-stack/scripts/fetch-specs.sh 29.272 23.401 # several at once
-~/myai-stack/scripts/fetch-specs.sh RFC6733       # IETF
-```
-
-A 3GPP spec is a few MB and takes under a minute. Fetch it rather than guess.
-
-**3. Grep for the answer, then read around the hit for context.**
-
-```bash
-grep -n "IMSI unknown" ~/specs/3GPP-24.301.txt
-sed -n '4195,4215p' ~/specs/3GPP-24.301.txt      # the surrounding table
-grep -n "^9\.9\.3\.9" ~/specs/3GPP-24.301.txt    # a specific clause
-```
-
-**4. Quote what you found and cite the line.** If the grep returns nothing, say the
-document does not appear to contain it — do not fall back on memory.
+A wrong clause reference gets copied into a code comment and outlives everyone who
+saw it. That is the failure this skill exists to prevent.
 
 ## Which document
 
-Derive it from the question; these are the common ones, not a limit:
+Derive it from the question; these are common ones, not a limit:
 
 | Topic | Document |
 |---|---|
@@ -77,13 +90,10 @@ Derive it from the question; these are the common ones, not a limit:
 
 ## Rules
 
-- **Never cite a clause you have not grepped.** A wrong spec reference gets copied
-  into a code comment and outlives everyone who saw it.
+- **Never cite a clause you have not grepped.**
 - **Quote the document's words.** Paraphrase after quoting, not instead of it.
-- **Cite the file and line** so the user can check you: `3GPP-24.301.txt:4205`.
-- **Version matters.** The fetcher takes the newest published version and the
-  filename records it. If the user is working to a specific release, say which
-  version you read.
+- **Cite file and line** so the user can check you: `3GPP-24.301.txt:4205`.
+- **Say which version you read.** The filename records it; releases differ.
 - **If the corpus disagrees with what you remember, the corpus is right.**
-- **If the grep finds nothing**, try synonyms — specs use precise wording, so
-  "IMSI unknown" hits where "unknown subscriber" may not. Then say what you tried.
+- **If grep finds nothing**, try the spec's own wording — "IMSI unknown" hits where
+  "unknown subscriber" may not — then say what you tried rather than guessing.

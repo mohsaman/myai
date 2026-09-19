@@ -25,6 +25,8 @@ printf '\033[1mInstalling myai\033[0m (%s)\n' "$OS"
 # --- control script ---------------------------------------------------------
 mkdir -p "$BIN"
 install -m 0755 "$HERE/bin/myai" "$BIN/myai" && ok "installed $BIN/myai"
+# On PATH so an agent calls it as a command rather than reaching for a web tool.
+install -m 0755 "$HERE/scripts/fetch-specs.sh" "$BIN/fetch-specs" && ok "installed $BIN/fetch-specs"
 case ":$PATH:" in
   *":$BIN:"*) ;;
   *) info "add to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
