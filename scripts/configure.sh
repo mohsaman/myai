@@ -9,9 +9,9 @@ set -uo pipefail
 BASE="${OPENWEBUI_URL:-http://127.0.0.1:8080}"
 TASK_MODEL="${TASK_MODEL:-qwen2.5:3b}"
 CHAT_MODEL="${CHAT_MODEL:-qwen3:30b-a3b}"
-VISION_MODEL="${VISION_MODEL:-qwen2.5vl:7b}"
+VISION_MODEL="${VISION_MODEL:-qwen3.6:27b}"
 EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
-CODE_MODEL="${CODE_MODEL:-qwen2.5-coder:14b}"
+CODE_MODEL="${CODE_MODEL:-qwen3.6:27b}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
 STT_MODEL="${STT_MODEL:-small}"
 
@@ -124,7 +124,7 @@ def embed():
 try_("embeddings -> " + os.environ["EMBED_MODEL"], embed)
 
 # 6. Per-model display names, capabilities and function calling.
-#    The dropdown otherwise shows raw ids like "qwen2.5vl:7b", which say nothing
+#    The dropdown otherwise shows raw ids like "qwen3.6:27b", which say nothing
 #    about what each model is for — so each gets its use in parentheses.
 #
 #    legacy function calling = Open WebUI drives tools itself, instead of offering

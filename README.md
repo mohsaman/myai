@@ -60,8 +60,7 @@ Suggested models — swap freely, these are what the defaults assume:
 |---|---|---|---|
 | `qwen3:30b-a3b` | 18 GB | Chat, reasoning, web search | 50.9 tok/s |
 | `gpt-oss:20b` | 13 GB | Agentic work — native tool calling | 28.8 tok/s |
-| `qwen2.5-coder:14b` | 9 GB | Code | 14.1 tok/s |
-| `qwen2.5vl:7b` | 6 GB | Vision (reads images) | 7.9 s/image |
+| `qwen3.6:27b` | 18 GB | Deep work — vision, tools, code. Dense, so every parameter fires | — |
 | `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
@@ -100,8 +99,7 @@ brew install ollama
 brew services start ollama
 
 ollama pull qwen3:30b-a3b        # chat + reasoning
-ollama pull qwen2.5-coder:14b    # code
-ollama pull qwen2.5vl:7b         # vision
+ollama pull qwen3.6:27b           # deep work: vision, tools, code
 ollama pull qwen2.5:3b           # background tasks — keep this one small
 ollama pull nomic-embed-text     # embeddings
 ```
@@ -248,8 +246,7 @@ Then pull the models — identical to macOS:
 
 ```bash
 ollama pull qwen3:30b-a3b
-ollama pull qwen2.5-coder:14b
-ollama pull qwen2.5vl:7b
+ollama pull qwen3.6:27b           # deep work: vision, tools, code
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
@@ -445,11 +442,14 @@ injects the results.
 
 ### Vision models and tools
 
-A vision model without tool support (like `qwen2.5vl`) will reject any request carrying tool
-definitions. Set that model's **Function Calling: Legacy** too, or it fails with
-*"does not support tools"* whenever an integration toggle is on.
+A vision model without tool support will reject any request carrying tool definitions,
+failing with *"does not support tools"* whenever an integration toggle is on. If you run
+one, set that model's **Function Calling: Legacy**.
 
-No single model here does both vision and native tool calling — pick per task.
+This used to force a choice — read the image *or* use tools. It no longer does:
+`qwen3.6:27b` reports `vision` and `tools` together, so one model covers both. Check with
+`ollama show <model>` before assuming; the capability list is authoritative and the model's
+own description is not.
 
 ---
 
