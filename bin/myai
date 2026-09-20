@@ -310,8 +310,13 @@ cmd_backup() {
   [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
   [ "$OS" = linux ] && [ -d "$HOME/.config/systemd/user" ] && extra=(-C "$HOME/.config/systemd/user" .)
 
-  tar -czf "$out" -C "$HOME" .open-webui \
+  # --exclude MUST precede the paths it applies to. bsdtar (the macOS default)
+  # silently ignores excludes that come after, which is how a 20 MB backup of
+  # chats and uploads became a 1.2 GB copy of the venv and the Whisper cache.
+  # GNU tar accepts either order, so this only shows up on a Mac.
+  tar -czf "$out" \
       --exclude='.open-webui/venv' --exclude='.open-webui/cache' --exclude='.open-webui/logs' \
+      -C "$HOME" .open-webui \
       "${extra[@]}" 2>/dev/null
 
   [ -f "$out" ] && ok "backup: $out ($(du -h "$out" | cut -f1))" || bad "backup failed"
