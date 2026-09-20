@@ -33,9 +33,25 @@ MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
 OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-60s}"
 # Context window. The KV cache for this must fit in GPU memory beside the weights
-# or inference silently spills to the CPU. 32768 keeps a 30B MoE at ~19.5 GB on a
-# 32 GB machine; 65536 pushes it to 21 GB, which swaps once a browser is open.
-OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-32768}"
+# or inference silently spills to the CPU -- and ollama ps still reports 100% GPU
+# while it happens, so the only symptom is a collapse in tokens/sec.
+#
+# Measured for a 30B MoE (48 layers, 4 KV heads, 128-dim): 51 KiB per token with
+# KV_CACHE_TYPE=q8_0, 96 KiB at f16. Against a 24 GB wired limit on a 32 GB Mac,
+# with ~18.6 GB of Q4_K_M weights:
+#
+#   32k -> 1.7 GB KV, 20.3 GB total     64k -> 3.4 GB, 22.0 GB, ~2 GB spare
+#   48k -> 2.6 GB KV, 21.2 GB total    128k -> 6.8 GB, 25.4 GB, spills
+#
+# 48k is the comfortable default: it leaves room for a browser and ComfyUI.
+# Measured at 48k: 21.1 GB allocated, 100% resident, which matches the table.
+#
+# Recompute if you change model -- the per-token cost is not a property of
+# parameter count. A dense 27B with 65 layers and 256-dim keys costs 138 KiB per
+# token against this model's 51 KiB, nearly three times as much from a smaller
+# file. Read block_count, head_count_kv, key_length and value_length from
+# /api/show and work it out rather than assuming similar models are similar.
+OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-49152}"
 OLLAMA_FLASH_ATTENTION="${OLLAMA_FLASH_ATTENTION:-1}"
 OLLAMA_KV_CACHE_TYPE="${OLLAMA_KV_CACHE_TYPE:-q8_0}"
 READY_TIMEOUT=120
