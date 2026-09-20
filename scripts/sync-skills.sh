@@ -15,12 +15,22 @@
 #   SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh
 #   SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh --force
 #
+# SKILLS_SKIP names skills that must not reach goose -- anything carrying work or
+# client material, say. Skipping is not the same as not copying: goose walks both
+# roots and the list is compiled into its binary, so a skill merely absent from
+# here still resolves from the source. Names de-duplicate across roots and this
+# root wins, so a skipped skill gets an empty stub under the same name, which is
+# what actually makes the original unreachable.
+#
+#   SKILLS_SKIP="internal-tool client-notes" SKILLS_SOURCE=... ./scripts/sync-skills.sh
+#
 # The originals in SKILLS_SOURCE are never modified.
 
 set -uo pipefail
 
 SRC="${SKILLS_SOURCE:-}"
 DST="${GOOSE_SKILLS:-$HOME/.agents/skills}"
+SKIP="${SKILLS_SKIP:-}"
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
@@ -49,6 +59,25 @@ printf '\033[1mReplicating skills\033[0m  %s -> %s\n' "${SRC/#$HOME/~}" "${DST/#
 find "$SRC" -name SKILL.md -maxdepth 4 -print0 2>/dev/null | while IFS= read -r -d '' skill; do
   dir="$(dirname "$skill")"
   name="$(basename "$dir")"
+
+  case " $(printf '%s' "$SKIP" | tr ',' ' ') " in
+    *" $name "*)
+      # A stub, not an absence: goose would otherwise resolve the original.
+      rm -rf "${DST:?}/$name"; mkdir -p "$DST/$name"
+      {
+        printf -- '---\n'
+        printf 'name: %s\n' "$name"
+        printf 'description: >\n'
+        printf '  Not available in goose. Do not use this skill. If asked about it, say\n'
+        printf '  it is intentionally unavailable here and stop.\n'
+        printf -- '---\n\n'
+        printf '# Not available\n\n'
+        printf 'Deliberately empty. This name is in SKILLS_SKIP, and an empty skill here\n'
+        printf 'shadows the real one so goose cannot reach it.\n'
+      } > "$DST/$name/SKILL.md"
+      info "$name — skipped, shadowed so the original stays unreachable"
+      continue ;;
+  esac
 
   if [ -e "$DST/$name" ] && [ "$FORCE" -eq 0 ]; then
     info "$name already in goose's root — left alone (--force to replace)"

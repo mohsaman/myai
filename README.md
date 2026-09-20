@@ -971,6 +971,20 @@ SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh --force   # re-copy, 
 Point `SKILLS_SOURCE` at whichever directory your other agent keeps its skills in. The
 script derives everything else from that path, so it works for any of them.
 
+`SKILLS_SKIP` names skills that must not reach goose — anything carrying work or client
+material:
+
+```bash
+SKILLS_SKIP="internal-tool client-notes" SKILLS_SOURCE=~/.someagent/skills \
+  ./scripts/sync-skills.sh
+```
+
+Note what skipping has to do. goose walks **both** roots and the list is compiled into its
+binary, so a skill merely *absent* from goose's root still resolves from the source — and
+deleting a copy makes things worse, because the copy was shadowing the original. Names
+de-duplicate across roots with `~/.agents` winning, so a skipped skill gets an **empty stub
+under the same name**, and that is what actually makes the original unreachable.
+
 Copying the files is not sufficient, which is the part worth knowing. A skill that
 keeps state — a knowledge file, a cache, a log — writes it under its own skill home,
 and that path is written inside the skill. A plain `cp` therefore leaves goose reading
