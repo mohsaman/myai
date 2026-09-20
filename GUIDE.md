@@ -11,7 +11,7 @@ and only when a model decides it needs one — it will tell you when it does.
 ## The first ten minutes
 
 ```bash
-myai start          # brings up all seven services, opens the browser
+myai start          # brings up all eight services, opens the browser
 myai status         # what is running, and on which ports
 ```
 
@@ -22,7 +22,7 @@ under a minute.
 |---|---|
 | "How much disk is free, and what is using it?" *(switch on **Terminal**)* | it runs real commands and reads the output |
 | "Plot the last 30 days of anything from this CSV" *(attach a file, switch on **Code Interpreter**)* | a real Python kernel, not a sandbox |
-| Paste a screenshot: "what is wrong with this config?" *(pick **Qwen2.5-VL**)* | it reads images |
+| Paste a screenshot: "what is wrong with this config?" *(pick **Qwen3.6 27B**)* | it reads images |
 | "Generate an image of a lighthouse at dusk" *(image icon)* | SDXL on the local GPU |
 | "What changed in the latest Ollama release?" | it searches the web and says so |
 | "Present that as an infographic" | a rendered HTML page, not ASCII art |
@@ -38,8 +38,7 @@ This matters more than any other setting. The models are not interchangeable.
 | **Qwen3 30B** | general chat, reasoning, tool use — the default | nothing much; it is the all-rounder |
 | **Qwen3 Explorer** | when you want a position, not a survey — it challenges the question | quick factual lookups; it is slower and blunter |
 | **GPT-OSS 20B** | long-context reading, 128k window | agentic loops — it invents tools that do not exist |
-| **Qwen2.5 Coder 14B** | writing and reviewing code | general conversation |
-| **Qwen2.5-VL 7B** | anything with an image in it | text-only work; it is small |
+| **Qwen3.6 27B** | hard work — images, code, tool use. Dense, so every parameter fires | long documents; its context caps at 32k |
 | **Qwen2.5 3B** | instant factual answers | anything needing thought |
 | **Telecom Expert** | standards questions — it greps the spec corpus | general use |
 | **Aya Expanse 32B** | Persian, and other non-English output | domain terminology; verify what it translates |
@@ -50,9 +49,16 @@ Two findings worth carrying:
 and repeatedly failed at multi-turn tool use, inventing `container.exec`, `browser.run`
 and `cat` as tools. Use it for reading and thinking, not for doing.
 
-**Aya composes in Persian; Qwen3 translates into it.** Asked to write a message to a
-colleague, Qwen3 produced correct but robotic text while Aya used natural idiom —
-and 25× fewer tokens, because it has no reasoning block.
+**Aya is the safe choice for Persian, and it is measurable.** Across five registers it
+emitted zero Arabic ی/ک where Persian forms are required — a common tell in models trained
+mostly on Arabic, invisible at a glance and breaks search and sorting — used ZWNJ correctly
+in compounds, and put Persian numerals in prose while leaving 5G and 4G in Latin. It also
+has no reasoning block, so a short reply costs ~60 tokens rather than several hundred.
+
+**Turn thinking off for short non-English work.** Asked for a one-line message in Persian,
+Qwen3.6 spent 500 tokens reasoning and returned nothing usable. The same prompt with
+`think: false` answered correctly in 16 tokens. The reasoning block earns its cost on hard
+problems and is pure latency on "write me a sentence".
 
 ---
 
@@ -105,8 +111,10 @@ terminal, this is **not** restricted — Python there can do anything your accou
 
 ### Look at images
 
-Pick **Qwen2.5-VL 7B** and paste or attach. Screenshots, diagrams, tables, scanned
-documents, error dialogs. About 8 seconds per image.
+Pick **Qwen3.6 27B** and paste or attach. Screenshots, diagrams, tables, scanned
+documents, error dialogs. It is the only model here that does vision *and* tool calling, so
+you no longer have to switch model to read an image with an integration toggle on. Being a
+dense 27B it is slower than a small vision specialist — expect tens of seconds, not eight.
 
 ### Generate images
 
@@ -307,8 +315,9 @@ exists precisely because of this. Treat every unchecked specific as unverified.
 **Reliably expand acronyms in a domain.** Told explicitly not to, it still did — and got
 it wrong a third of the time.
 
-**Hold a long context usefully.** The window is 32k (64k+ on some models), but quality
-degrades well before the limit.
+**Hold a long context usefully.** Each model carries its own window, sized to what its
+KV cache allows: 128k for GPT-OSS, 72k for Qwen3, 32k for Qwen3.6. Quality degrades well
+before any of those limits, so a fresh chat beats a long one.
 
 **Ingest documents into knowledge collections.** Open WebUI's RAG pipeline extracts zero
 characters in this build. Use the spec corpus and file attachments instead.

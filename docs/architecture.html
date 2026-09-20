@@ -71,7 +71,7 @@
 </style>
 
 <h1>myai — architecture</h1>
-<p class="sub">Eight services and eight models on one machine. Nothing leaves it except a web search the model chooses to make.</p>
+<p class="sub">Eight services and six models on one machine. Nothing leaves it except a web search the model chooses to make.</p>
 <div class="rule"></div>
 
 <div class="band">
@@ -98,7 +98,7 @@
     <div class="card engine wide">
       <div class="name">Ollama</div>
       <div class="port">127.0.0.1:11434</div>
-      <div class="desc">Serves every language model below. 48k context, q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
+      <div class="desc">Serves every language model below. Each carries its own context window, sized from its architecture. q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
     </div>
     <div class="card engine">
       <div class="name">ComfyUI + SDXL</div>
@@ -109,7 +109,7 @@
 </div>
 
 <div class="band">
-  <div class="band-label">Models — 87&nbsp;GB on disk, one resident at a time</div>
+  <div class="band-label">Models — 72&nbsp;GB on disk, one resident at a time</div>
   <table>
     <tr>
       <th style="width:19%">Model</th><th style="width:9%">Size</th>
@@ -123,7 +123,7 @@
     <tr>
       <td><b>qwen3.6:27b</b></td>
       <td class="mono">17.8 GB</td><td class="mono">27B</td>
-      <td class="d">Dense, so every parameter fires on every token — roughly 9× the compute of the default for the same footprint. Slower, markedly stronger. KV cache costs 138 KiB/token against the default's 51.</td>
+      <td class="d">Dense, so every parameter fires on every token — roughly 9× the compute of the default for the same footprint. Also the only model here doing vision <i>and</i> tools, so it covers images and code too. Its KV cache is the heaviest at 138 KiB/token, which caps it at 32k.</td>
     </tr>
     <tr>
       <td><b>aya-expanse:32b</b></td>
@@ -134,16 +134,6 @@
       <td><b>gpt-oss:20b</b></td>
       <td class="mono">13.8 GB</td><td class="mono">21B</td>
       <td class="d">Long-context reading, 128k window. The better talker and the worse agent — it invents tools that do not exist, so not for agentic loops.</td>
-    </tr>
-    <tr>
-      <td><b>qwen2.5-coder:14b</b></td>
-      <td class="mono">9.0 GB</td><td class="mono">15B</td>
-      <td class="d">Writing and reviewing code.</td>
-    </tr>
-    <tr>
-      <td><b>qwen2.5vl:7b</b></td>
-      <td class="mono">6.0 GB</td><td class="mono">8B</td>
-      <td class="d">Vision. Screenshots, diagrams, tables, scanned documents — about 8s per image.</td>
     </tr>
     <tr>
       <td><b>qwen2.5:3b</b></td>
@@ -250,9 +240,11 @@
   <b>The memory budget is the real constraint.</b> 32&nbsp;GB machine, ~24&nbsp;GB usable by the GPU.
   Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
   <span class="mono">ollama ps</span> still reports 100% GPU while it happens, so the only
-  symptom is a collapse in throughput. At 48k context a 30B MoE sits at ~21&nbsp;GB, leaving
-  room for a browser and an image backend. Per-token KV cost is not a function of parameter
-  count: check <span class="mono">block_count</span>, <span class="mono">head_count_kv</span>
-  and key/value length before assuming a similar model behaves similarly.
+  symptom is a collapse in throughput. Per-token KV cost is not a function of parameter count, so a single global
+  window is wrong for every model but one. Measured here: 26, 51 and 138&nbsp;KiB per token
+  across three models of similar size — the one advertising 256k gets 32k in practice, while
+  the one advertising 128k gets all of it. <span class="mono">set-context</span> reads
+  <span class="mono">block_count</span>, <span class="mono">head_count_kv</span> and
+  key/value length from each model and bakes the right window in.
 </div>
 </html>
