@@ -16,7 +16,7 @@ provider. What it can do:
 - **Speak and listen** — neural text-to-speech in 53 languages, plus dictation
 - **Search the web** — with citations, only when you ask for it
 - **Remember** — a persistent knowledge graph that carries across conversations
-- **64k context** — long documents and long conversations stay in memory
+- **48k context** — long documents and long conversations stay in memory
 
 Runs on **macOS** (launchd, Metal) and **Linux** (systemd, CUDA) — same commands on both.
 
