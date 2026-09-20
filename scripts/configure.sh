@@ -28,6 +28,7 @@ export BASE TOKEN TASK_MODEL CHAT_MODEL EMBED_MODEL TTS_VOICE STT_MODEL
 python3 <<'PY'
 import os, json, urllib.request, urllib.error
 BASE, TOKEN = os.environ["BASE"], os.environ["TOKEN"]
+OLLAMA = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
 def call(path, data=None):
     r = urllib.request.Request(BASE + path, method="POST" if data is not None else "GET")
@@ -150,6 +151,32 @@ for _row in [
         seen.add(_row[0])
         MODELS.append(_row)
 
+# Entries are created but never removed, so deleting a model from Ollama used to
+# leave it selectable in the picker -- and picking it fails at request time with
+# nothing explaining why. Anything whose backing model is gone gets dropped, and
+# a preset whose base is gone is repointed at the chat model rather than deleted,
+# because the prompt is the valuable part and the weights are interchangeable.
+def prune():
+    try:
+        tags = json.loads(urllib.request.urlopen(
+            OLLAMA + "/api/tags", timeout=15).read())
+    except Exception as e:
+        print("  skipped prune: ollama unreachable (%s)" % e); return
+    have = {m["name"] for m in tags.get("models", [])}
+    for m in call("/api/v1/models/") or []:
+        mid, base = m.get("id"), m.get("base_model_id")
+        target = base or mid
+        if target in have:
+            continue
+        enc = urllib.parse.quote(mid, safe="")
+        if base:
+            m["base_model_id"] = os.environ["CHAT_MODEL"]
+            call("/api/v1/models/model/update?id=" + enc, m)
+            print("  repointed %s -> %s" % (mid, os.environ["CHAT_MODEL"]))
+        else:
+            call("/api/v1/models/model/delete?id=" + enc, {})
+            print("  dropped %s (no longer in ollama)" % mid)
+
 def setup(model_id, label, suffix, vision, legacy, hidden):
     payload = {
         "id": model_id,
@@ -214,6 +241,7 @@ def behaviour(model_id):
 
 try_(f"web + visual behaviour -> {os.environ['CHAT_MODEL']}",
      lambda: behaviour(os.environ["CHAT_MODEL"]))
+try_("prune entries whose model is gone", prune)
 PY
 
 echo
