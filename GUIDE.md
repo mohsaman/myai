@@ -297,8 +297,8 @@ everything before it. Start a fresh chat rather than carrying 20k of history.
 Worth knowing so you do not waste time.
 
 **Match a frontier model on long multi-step reasoning.** Qwen3 activates 3 billion
-parameters per token. It is a capable assistant that never tires; it is not GPT-5 or
-Claude. For work that needs many constraints held at once, you will feel it.
+parameters per token. It is a capable assistant that never tires; it is not a frontier
+hosted model. For work that needs many constraints held at once, you will feel it.
 
 **Be trusted on specifics it has not checked.** It will invent a filename, a config key,
 a version number or a spec clause to sound authoritative. The verification tooling

@@ -904,8 +904,8 @@ Per-project hints are where this gets useful: put the architecture, the commands
 that matter and the mistakes to avoid in a `.goosehints` at the repo root, and every
 session starts knowing them.
 
-If you already maintain a `CLAUDE.md`, its contents transfer directly — the two files
-do the same job. Copy the role, standards and context sections into
+If another agent you use keeps a similar instructions file, its contents transfer
+directly — they do the same job. Copy the role, standards and context sections into
 `~/.config/goose/.goosehints` and both tools behave consistently. Mind the cost: the
 file is injected into every session, so a 90-line hints file spends roughly 1,200
 tokens of a 32k window before you have typed anything.
@@ -936,7 +936,7 @@ goose reads skills from these roots:
 | Root | Notes |
 |---|---|
 | `~/.agents/skills/` | **goose's own.** Tool-neutral, and where you should author |
-| `~/.claude/skills/` | picked up automatically if it exists |
+| another agent's skills root | picked up automatically if goose knows the path |
 | `builtin://skills/` | ships with goose — `web-search`, `goose-doc-guide` |
 
 `~/.agents/skills/` is in your home directory, so **skills are available from any
@@ -956,32 +956,36 @@ shows loaded. The CLI reads the filesystem; the model guesses at its own configu
 #### Giving goose its own copies
 
 Names are de-duplicated across roots and **`~/.agents` wins**, so copying a skill into
-goose's root makes goose use its copy and ignore Claude's. The two then evolve
+goose's root makes goose use its copy and ignore the original. The two then evolve
 independently.
 
 ```bash
-./scripts/sync-skills.sh           # copy anything goose does not already have
-./scripts/sync-skills.sh --force   # re-copy, replacing goose's versions
+SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh           # copy what goose lacks
+SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh --force   # re-copy, replacing
 ```
+
+Point `SKILLS_SOURCE` at whichever directory your other agent keeps its skills in. The
+script derives everything else from that path, so it works for any of them.
 
 Copying the files is not sufficient, which is the part worth knowing. A skill that
 keeps state — a knowledge file, a cache, a log — writes it under its own skill home,
 and that path is written inside the skill. A plain `cp` therefore leaves goose reading
-and **writing** Claude's tree while looking independent. The script rewrites those paths
-and then verifies no file under goose's root still refers to `.claude`. It also drops
-`.git` and any `cache/` of cloned repos, which took one skill from 435 MB to 2.4 MB.
+and **writing** the source tree while looking independent. The script rewrites those
+paths and then verifies no file under goose's root still refers back to the source. It
+also drops `.git` and any `cache/` of cloned repos, which took one skill from 435 MB
+to 2.4 MB.
 
-Claude's originals are never modified.
+The originals are never modified.
 
 Two caveats:
 
-- **goose still walks `~/.claude/skills`.** That root list is compiled into the binary;
-  `GOOSE_SEARCH_PATHS` only affects recipes. Once every name is shadowed it finds
-  nothing it will use, but "never scanned" is not achievable.
-- **Copies of synced skills freeze.** Claude-managed skills update themselves; goose's
-  copy does not, and because `~/.agents` wins it will keep using the stale one. Re-run
-  the script with `--force` after a sync, or delete goose's copy of any you would
-  rather track upstream.
+- **goose still walks the other root if it knows it.** That root list is compiled into
+  the binary; `GOOSE_SEARCH_PATHS` only affects recipes. Once every name is shadowed it
+  finds nothing it will use, but "never scanned" is not achievable.
+- **Copies of synced skills freeze.** A skill managed by its own tool updates itself;
+  goose's copy does not, and because `~/.agents` wins it will keep using the stale one.
+  Re-run the script with `--force` after an upstream change, or delete goose's copy of
+  any you would rather track upstream.
 
 **A skill supplies framing, not facts.** With a 3GPP expert skill loaded and a hints
 file explicitly forbidding unverified spec citations, the model still produced a
