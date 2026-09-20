@@ -327,6 +327,9 @@ and it takes a couple of minutes.
 | Replies suddenly very slow | memory pressure — `sysctl vm.swapusage`; two models resident at once |
 | Empty reply from a thinking model | token budget consumed by reasoning; not a crash |
 | "I cannot access X" | the capability exists but the toggle is off — check **+** menu |
+| "I have no network access" | almost always false — see below |
+| It refuses, and rephrasing keeps failing | the refusal is in the context now; start a new chat, do not rewrite the prompt |
+| It asks for a password you should not need | it did not try; key auth often already works |
 | A tool that does not exist was called | the model invented it; switch to Qwen3 |
 | Web page fetched but nothing useful | JavaScript-rendered; find a static URL |
 | HTTP 200 but no content | check the body, not the status code |
@@ -342,3 +345,36 @@ ollama ps                   # what is loaded, and whether it is on the GPU
 The rule that catches most of it: **check what came back, not what the status code
 said.** A 200 can be a bot-block page, `exit 0` can hide a silent failure, and a model
 saying it lacks access is often wrong.
+
+### When it says it cannot do something
+
+This deserves its own section, because the stated reason is frequently not the real
+one, and believing it sends you debugging the wrong layer.
+
+Asked to SSH into a router on the local network, a 30B model answered *"I cannot access
+external network devices — I have no network access."* Every part of that was false: it
+had a shell, the machine had a network, and the address was the machine's own default
+gateway. The actual trigger was **the password in the prompt**. The capability claim was
+invented afterwards to justify a refusal it had already decided on.
+
+Three distinct failures look identical from the chat window:
+
+| What you see | What it is | What to do |
+|---|---|---|
+| "I have no network access" | a credential in your prompt tripped a refusal | set up key auth, keep secrets out of prompts |
+| rephrasing keeps failing | the refusal is in the context and it now defends it | **start a new chat** — do not rewrite the prompt |
+| "please provide the password" | it did not try; key auth may already work | tell it to run the command and report the error |
+
+Fixing one reveals the next wearing similar clothes, which is why it can take several
+rounds and feel like nothing changed.
+
+**Keep credentials out of prompts entirely.** Set up SSH keys, then phrase the task with
+no secrets in it. It avoids the refusal, and it keeps passwords out of your shell history
+and the model's context. The `.goosehints` shipped here tells the agent to try before
+claiming it cannot, to never use `sshpass -p`, and to re-evaluate rather than defend an
+earlier refusal — but a hints file is weaker than the model's training, so the habit
+matters more than the instruction.
+
+**Verify anything it reports from a device.** Summaries mix what the config says with
+what the model inferred from comments. The facts are usually right; the interpretation
+is where it drifts.
