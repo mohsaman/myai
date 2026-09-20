@@ -48,6 +48,12 @@ to phrase things, and where the sharp edges are.
 | **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
 | **terminal** | Read-only shell the model can query, locally and over SSH |
 
+[![Architecture](docs/architecture.png)](docs/architecture.html)
+
+The diagram above is the same information in one page: which services are reachable from
+where, what each model is for, and — the part worth reading twice — the five paths that
+actually cross the machine boundary.
+
 Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
@@ -1073,13 +1079,22 @@ tools that had not been advertised and returned empty turns. Enable it in
 
 ## Diagram source
 
-The image above is rendered from [`docs/infographic.html`](docs/infographic.html).
-Open it in a browser to view or edit, then re-render with:
+Both images are rendered from HTML you can open and edit in a browser:
+
+| Image | Source |
+|---|---|
+| the banner | [`docs/infographic.html`](docs/infographic.html) |
+| the architecture page | [`docs/architecture.html`](docs/architecture.html) |
+
+Re-render either with the `render-html` this repo installs:
 
 ```bash
-chrome --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \\
-  --window-size=1200,1520 --screenshot=docs/infographic.png docs/infographic.html
+render-html docs/architecture.html docs/architecture.png 1400
 ```
+
+It renders tall and trims the uniform background afterwards, so you do not have to know the
+content height in advance — passing a guessed `--window-size` to headless Chrome leaves a
+third of the image empty or crops the bottom, and neither is obvious until you look.
 
 ---
 

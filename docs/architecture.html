@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>myai architecture</title>
+<style>
+  :root{
+    --bg:#0b0f1e; --panel:#151d34; --ink:#f1f5ff; --dim:#9aa6c7;
+    --line:#2a3454; --accent:#6ee7b7; --sky:#7dd3fc; --amber:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:40px 36px 48px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  h1{font-size:26px; margin:0 0 4px; letter-spacing:-.02em}
+  .sub{color:var(--dim); font-size:14px; margin:0 0 4px}
+  .rule{height:1px;background:var(--line);margin:22px 0 26px}
+
+  .band{margin-bottom:26px}
+  .band-label{
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--dim); margin-bottom:10px; display:flex; align-items:center; gap:10px;
+  }
+  .band-label::after{content:""; flex:1; height:1px; background:var(--line)}
+
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; flex:1 1 0; min-width:150px;
+  }
+  .card.wide{flex:2 1 0}
+  .card .name{font-weight:600; font-size:14px; margin-bottom:2px}
+  .card .port{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11px; color:var(--accent);
+  }
+  .card .desc{color:var(--dim); font-size:12px; margin-top:6px}
+  .card.entry{border-color:var(--accent); background:
+    linear-gradient(90deg,rgba(110,231,183,.10),rgba(125,211,252,.05)),var(--panel)}
+  .card.engine{border-left:3px solid var(--sky)}
+  .card.guard{border-left:3px solid var(--amber)}
+
+  .flow{
+    text-align:center; color:var(--dim); font-size:18px;
+    margin:-8px 0 10px; letter-spacing:.4em;
+  }
+
+  .note{
+    background:var(--panel); border:1px solid var(--line);
+    border-left:3px solid var(--amber); border-radius:8px;
+    padding:12px 14px; margin-top:6px; font-size:12.5px; color:var(--dim);
+  }
+  .note b{color:var(--ink); font-weight:600}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px}
+  th{
+    text-align:left; color:var(--dim); font-weight:500; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase;
+    border-bottom:1px solid var(--line); padding:0 10px 7px 0;
+  }
+  td{padding:7px 10px 7px 0; border-bottom:1px solid rgba(42,52,84,.5); vertical-align:top}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent); font-size:11.5px; white-space:nowrap}
+  td.d{color:var(--dim)}
+  tr:last-child td{border-bottom:none}
+  .tag{
+    display:inline-block; font-size:10px; padding:1px 7px; border-radius:999px;
+    border:1px solid var(--line); color:var(--dim); margin-left:6px; vertical-align:1px;
+  }
+  .tag.open{border-color:var(--accent); color:var(--accent)}
+</style>
+
+<h1>myai — architecture</h1>
+<p class="sub">Eight services and eight models on one machine. Nothing leaves it except a web search the model chooses to make.</p>
+<div class="rule"></div>
+
+<div class="band">
+  <div class="band-label">Access</div>
+  <div class="row">
+    <div class="card entry wide">
+      <div class="name">Open WebUI <span class="tag open">LAN</span></div>
+      <div class="port">127.0.0.1:8080</div>
+      <div class="desc">Chat, file upload, voice, model switching. The only service bound beyond loopback — everything else is reachable only through it.</div>
+    </div>
+    <div class="card entry">
+      <div class="name">goose</div>
+      <div class="port">CLI · @g / @goose</div>
+      <div class="desc">Same models as an agent in your shell. Reads files, runs commands, iterates on its own output.</div>
+    </div>
+  </div>
+</div>
+
+<div class="flow">↓</div>
+
+<div class="band">
+  <div class="band-label">Inference</div>
+  <div class="row">
+    <div class="card engine wide">
+      <div class="name">Ollama</div>
+      <div class="port">127.0.0.1:11434</div>
+      <div class="desc">Serves every language model below. 48k context, q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
+    </div>
+    <div class="card engine">
+      <div class="name">ComfyUI + SDXL</div>
+      <div class="port">127.0.0.1:8188</div>
+      <div class="desc">Image generation on the GPU. 1024×1024, ~45s. No content filter in the pipeline.</div>
+    </div>
+  </div>
+</div>
+
+<div class="band">
+  <div class="band-label">Models — 87&nbsp;GB on disk, one resident at a time</div>
+  <table>
+    <tr>
+      <th style="width:19%">Model</th><th style="width:9%">Size</th>
+      <th style="width:9%">Active</th><th>What it is for</th>
+    </tr>
+    <tr>
+      <td><b>qwen3:30b-a3b</b> <span class="tag open">default</span></td>
+      <td class="mono">18.6 GB</td><td class="mono">3B</td>
+      <td class="d">General chat, reasoning, tool use. A mixture-of-experts: 30B parameters stored, only 3B activated per token — which is why it is fast, and why it reasons like a much smaller model.</td>
+    </tr>
+    <tr>
+      <td><b>qwen3.6:27b</b></td>
+      <td class="mono">17.8 GB</td><td class="mono">27B</td>
+      <td class="d">Dense, so every parameter fires on every token — roughly 9× the compute of the default for the same footprint. Slower, markedly stronger. KV cache costs 138 KiB/token against the default's 51.</td>
+    </tr>
+    <tr>
+      <td><b>aya-expanse:32b</b></td>
+      <td class="mono">19.8 GB</td><td class="mono">32B</td>
+      <td class="d">Composes in Persian and other non-English rather than translating into it. No reasoning block, so ~25× fewer tokens for the same answer.</td>
+    </tr>
+    <tr>
+      <td><b>gpt-oss:20b</b></td>
+      <td class="mono">13.8 GB</td><td class="mono">21B</td>
+      <td class="d">Long-context reading, 128k window. The better talker and the worse agent — it invents tools that do not exist, so not for agentic loops.</td>
+    </tr>
+    <tr>
+      <td><b>qwen2.5-coder:14b</b></td>
+      <td class="mono">9.0 GB</td><td class="mono">15B</td>
+      <td class="d">Writing and reviewing code.</td>
+    </tr>
+    <tr>
+      <td><b>qwen2.5vl:7b</b></td>
+      <td class="mono">6.0 GB</td><td class="mono">8B</td>
+      <td class="d">Vision. Screenshots, diagrams, tables, scanned documents — about 8s per image.</td>
+    </tr>
+    <tr>
+      <td><b>qwen2.5:3b</b></td>
+      <td class="mono">1.9 GB</td><td class="mono">3B</td>
+      <td class="d">Instant factual answers, and the task model that titles chats in the background.</td>
+    </tr>
+    <tr>
+      <td><b>nomic-embed-text</b></td>
+      <td class="mono">0.3 GB</td><td class="mono">137M</td>
+      <td class="d">Embeddings for retrieval. Hidden from the model picker — it is infrastructure, not something to chat with.</td>
+    </tr>
+  </table>
+  <div class="note" style="border-left-color:var(--sky)">
+    <b>Presets are not models.</b> <i>Telecom Expert</i> and <i>Qwen3 Explorer</i> in the
+    picker are system prompts layered over a base model, not separate weights — which is why
+    they cost nothing extra on disk and switch instantly. What they change is framing and
+    tool access, not capability: a preset makes a model <i>sound</i> like a domain expert
+    well before it makes it right.
+  </div>
+</div>
+
+<div class="band">
+  <div class="band-label">Speech</div>
+  <div class="row">
+    <div class="card engine wide">
+      <div class="name">TTS router</div>
+      <div class="port">127.0.0.1:8881</div>
+      <div class="desc">Detects the language of each reply and forwards it to whichever engine can say it. 53 languages. Voices download on first use.</div>
+    </div>
+    <div class="card">
+      <div class="name">Kokoro</div>
+      <div class="port">127.0.0.1:8880</div>
+      <div class="desc">8 languages, best quality. 72 voices.</div>
+    </div>
+    <div class="card">
+      <div class="name">Piper</div>
+      <div class="port">local models</div>
+      <div class="desc">The other 45 languages, one .onnx per voice.</div>
+    </div>
+    <div class="card">
+      <div class="name">faster-whisper</div>
+      <div class="port">in Open WebUI</div>
+      <div class="desc">Speech to text for dictation.</div>
+    </div>
+  </div>
+</div>
+
+<div class="band">
+  <div class="band-label">Capabilities the model can call</div>
+  <div class="row">
+    <div class="card guard">
+      <div class="name">terminal</div>
+      <div class="port">127.0.0.1:8002</div>
+      <div class="desc">Read-only shell, local and over SSH to named hosts. No shell interpreter, command allowlist, path confinement, credentials refused.</div>
+    </div>
+    <div class="card engine">
+      <div class="name">Jupyter</div>
+      <div class="port">127.0.0.1:8888</div>
+      <div class="desc">Code interpreter. A real kernel with filesystem, network and pip — <i>not</i> sandboxed.</div>
+    </div>
+    <div class="card engine">
+      <div class="name">mcpo</div>
+      <div class="port">127.0.0.1:8001</div>
+      <div class="desc">Bridges MCP servers into callable tools: filesystem, fetch, memory, time.</div>
+    </div>
+    <div class="card">
+      <div class="name">~/specs</div>
+      <div class="port">grep corpus</div>
+      <div class="desc">Standards documents fetched on demand, so clauses are quoted rather than recalled.</div>
+    </div>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+<div class="band">
+  <div class="band-label">What crosses the machine boundary</div>
+  <table>
+    <tr><th style="width:22%">Path</th><th style="width:20%">Reaches</th><th>Notes</th></tr>
+    <tr>
+      <td>Web search</td><td class="mono">DuckDuckGo</td>
+      <td class="d">Only when a model decides a question needs it. It says so, and Open WebUI shows citations.</td>
+    </tr>
+    <tr>
+      <td>fetch tool</td><td class="mono">any URL</td>
+      <td class="d">Model-initiated page reads. Required for anything time-dependent — training data has a cutoff.</td>
+    </tr>
+    <tr>
+      <td>Model &amp; voice pulls</td><td class="mono">ollama.com · huggingface</td>
+      <td class="d">One-time downloads. A new TTS language fetches ~60&nbsp;MB on first use, then never again.</td>
+    </tr>
+    <tr>
+      <td>Standards fetch</td><td class="mono">3gpp.org · rfc-editor</td>
+      <td class="d">Explicit, on request. Documents land in <span class="mono">~/specs</span> and are greppable offline.</td>
+    </tr>
+    <tr>
+      <td>Chats, prompts, files</td><td class="mono">never leave</td>
+      <td class="d">Inference, speech, images, embeddings and retrieval are all local.</td>
+    </tr>
+  </table>
+</div>
+
+<div class="note">
+  <b>The memory budget is the real constraint.</b> 32&nbsp;GB machine, ~24&nbsp;GB usable by the GPU.
+  Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
+  <span class="mono">ollama ps</span> still reports 100% GPU while it happens, so the only
+  symptom is a collapse in throughput. At 48k context a 30B MoE sits at ~21&nbsp;GB, leaving
+  room for a browser and an image backend. Per-token KV cost is not a function of parameter
+  count: check <span class="mono">block_count</span>, <span class="mono">head_count_kv</span>
+  and key/value length before assuming a similar model behaves similarly.
+</div>
+</html>
