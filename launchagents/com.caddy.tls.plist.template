@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.caddy.tls</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BREW__/caddy</string>
+        <string>run</string>
+        <string>--config</string>
+        <string>__HOME__/.open-webui/tls/Caddyfile</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__BREW__:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <!-- Without this caddy writes its data under / and fails silently. -->
+        <key>XDG_DATA_HOME</key>
+        <string>__HOME__/.open-webui/tls/caddy-data</string>
+        <key>XDG_CONFIG_HOME</key>
+        <string>__HOME__/.open-webui/tls/caddy-config</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/.open-webui/tls</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.open-webui/tls/caddy.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.open-webui/tls/caddy.err</string>
+</dict>
+</plist>

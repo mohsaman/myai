@@ -29,6 +29,7 @@ install -m 0755 "$HERE/bin/myai" "$BIN/myai" && ok "installed $BIN/myai"
 install -m 0755 "$HERE/scripts/fetch-specs.sh" "$BIN/fetch-specs" && ok "installed $BIN/fetch-specs"
 install -m 0755 "$HERE/scripts/render-html.sh" "$BIN/render-html" && ok "installed $BIN/render-html"
 install -m 0755 "$HERE/scripts/set-context.sh" "$BIN/set-context" && ok "installed $BIN/set-context"
+install -m 0755 "$HERE/scripts/setup-tls.sh" "$BIN/setup-tls" && ok "installed $BIN/setup-tls"
 
 # goose recipes: named entry points you run with `goose run --recipe <name>`.
 # Installed rather than symlinked so editing one does not change the repo.
@@ -101,6 +102,9 @@ have_jupyter(){ [ -x "$HOME/jupyter/venv/bin/python" ]; }
 have_mcpo()   { [ -x "$HOME/mcpo/venv/bin/mcpo" ]; }
 have_terminal(){ [ -f "$HOME/terminal/server.py" ] && [ -x "$HOME/terminal/venv/bin/python" ]; }
 have_tts()    { [ -f "$HOME/piper/router.py" ] && [ -x "$HOME/piper/venv/bin/python" ]; }
+# TLS is opt-in: the agent is only installed once a certificate exists, because
+# caddy with no cert fails on every start and KeepAlive turns that into a loop.
+have_tls()    { [ -f "$HOME/.open-webui/tls/Caddyfile" ] && command -v caddy >/dev/null 2>&1; }
 
 # --------------------------------------------------------------------- mac ---
 if [ "$OS" = mac ]; then
@@ -117,9 +121,10 @@ if [ "$OS" = mac ]; then
       com.mcpo.server)      have_mcpo   || { info "skip $label (not installed)"; continue; } ;;
       com.terminal.server)  have_terminal|| { info "skip $label (not installed)"; continue; } ;;
       com.ttsrouter.server) have_tts    || { info "skip $label (not installed)"; continue; } ;;
+      com.caddy.tls)        have_tls    || { info "skip $label (run setup-tls first)"; continue; } ;;
     esac
     out="$AGENTS/$label.plist"
-    sed -e "s|__HOME__|$HOME|g" \
+    sed -e "s|__HOME__|$HOME|g" -e "s|__BREW__|$BREW_BIN|g" \
         -e "s|__JUPYTER_TOKEN__|$JUPYTER_TOKEN|g" \
         -e "s|__MCPO_APIKEY__|$MCPO_APIKEY|g" \
         -e "s|__BREW_BIN__|$BREW_BIN|g" "$tpl" > "$out"
@@ -160,6 +165,7 @@ else
       myai-mcpo.service)      have_mcpo   || { info "skip $unit (not installed)"; continue; } ;;
       myai-terminal.service)  have_terminal|| { info "skip $unit (not installed)"; continue; } ;;
       myai-tts-router.service) have_tts   || { info "skip $unit (not installed)"; continue; } ;;
+      myai-caddy-tls.service)  have_tls   || { info "skip $unit (run setup-tls first)"; continue; } ;;
       myai-ollama.service)    command -v ollama >/dev/null 2>&1 || { info "skip $unit (ollama not installed)"; continue; } ;;
     esac
     sed -e "s|__HOME__|$HOME|g" -e "s|__OLLAMA__|$OLLAMA_BIN|g" \

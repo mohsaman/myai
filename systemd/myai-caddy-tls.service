@@ -1,0 +1,17 @@
+[Unit]
+Description=TLS terminator for Open WebUI (myai)
+# Serves the same app over HTTPS so browsers will grant a microphone off-machine.
+After=network.target myai-openwebui.service
+Wants=myai-openwebui.service
+
+[Service]
+Type=simple
+WorkingDirectory=__HOME__/.open-webui/tls
+ExecStart=/usr/bin/env caddy run --config __HOME__/.open-webui/tls/Caddyfile
+Environment="XDG_DATA_HOME=__HOME__/.open-webui/tls/caddy-data"
+Environment="XDG_CONFIG_HOME=__HOME__/.open-webui/tls/caddy-config"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -47,6 +47,7 @@ to phrase things, and where the sharp edges are.
 | **Jupyter** | The code interpreter's kernel — real Python, filesystem and network |
 | **mcpo** | Bridges MCP tool servers into Open WebUI as callable tools |
 | **terminal** | Read-only shell the model can query, locally and over SSH |
+| **caddy** | TLS in front of Open WebUI, so browsers will grant a microphone off-machine |
 
 [![Architecture](docs/architecture.png)](docs/architecture.html)
 

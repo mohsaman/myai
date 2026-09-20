@@ -28,6 +28,7 @@ OLLAMA_URL="http://127.0.0.1:11434"
 COMFY_URL="http://127.0.0.1:8188"
 KOKORO_URL="http://127.0.0.1:8880"
 TTS_URL="http://127.0.0.1:8881"
+TLS_PORT="${TLS_PORT:-8443}"
 JUPYTER_URL="http://127.0.0.1:8888"
 MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
@@ -61,6 +62,7 @@ LOG_DIR="$HOME/.open-webui/logs"
 COMFY_LOG_DIR="$HOME/ComfyUI/logs"
 KOKORO_LOG_DIR="$HOME/kokoro/logs"
 TTS_LOG_DIR="$HOME/piper/logs"
+TLS_LOG_DIR="$HOME/.open-webui/tls"
 JUPYTER_LOG_DIR="$HOME/jupyter/logs"
 MCPO_LOG_DIR="$HOME/mcpo/logs"
 TERMINAL_LOG_DIR="$HOME/terminal/logs"
@@ -72,6 +74,7 @@ if [ "$OS" = mac ]; then
   SVC_COMFY="com.comfyui.server"
   SVC_KOKORO="com.kokoro.server"
   SVC_TTS="com.ttsrouter.server"
+  SVC_TLS="com.caddy.tls"
   SVC_WEBUI="com.openwebui.server"
   SVC_JUPYTER="com.jupyter.server"
   SVC_MCPO="com.mcpo.server"
@@ -82,6 +85,7 @@ else
   SVC_COMFY="myai-comfyui"
   SVC_KOKORO="myai-kokoro"
   SVC_TTS="myai-tts-router"
+  SVC_TLS="myai-caddy-tls"
   SVC_WEBUI="myai-openwebui"
   SVC_JUPYTER="myai-jupyter"
   SVC_MCPO="myai-mcpo"
@@ -99,6 +103,7 @@ up_webui()  { curl -fsS --max-time 2 "$WEBUI_URL/health"          >/dev/null 2>&
 up_comfy()  { curl -fsS --max-time 2 "$COMFY_URL/system_stats"    >/dev/null 2>&1; }
 up_kokoro() { curl -fsS --max-time 2 "$KOKORO_URL/v1/audio/voices">/dev/null 2>&1; }
 up_tts()    { curl -fsS --max-time 2 "$TTS_URL/health">/dev/null 2>&1; }
+up_tls()    { curl -fsSk --max-time 3 "https://127.0.0.1:${TLS_PORT}/">/dev/null 2>&1; }
 # /api is the one Jupyter route that answers without the auth token.
 up_jupyter(){ curl -fsS --max-time 2 "$JUPYTER_URL/api"              >/dev/null 2>&1; }
 up_mcpo()   { curl -fsS --max-time 2 "$MCPO_URL/openapi.json"        >/dev/null 2>&1; }
@@ -232,6 +237,11 @@ cmd_start() {
   if svc_installed "$SVC_WEBUI"; then
     if up_webui; then ok "Open WebUI already running"
     else svc_up "$SVC_WEBUI"; wait_for "Open WebUI" up_webui || { info "check: myai logs"; return 1; }; fi
+  # TLS is optional: only started when a certificate has been generated.
+  if svc_installed "$SVC_TLS"; then
+    if up_tls; then ok "HTTPS already running"
+    else svc_up "$SVC_TLS"; wait_for "HTTPS" up_tls || info "HTTPS did not start — myai logs tls"; fi
+  fi
   fi
 
   local models; models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | paste -sd', ' -)
@@ -246,6 +256,7 @@ cmd_stop() {
   printf '%sStopping local AI stack%s\n' "$BOLD" "$OFF"
   svc_installed "$SVC_WEBUI"  && { svc_down "$SVC_WEBUI";  wait_down "Open WebUI" up_webui; }
   svc_installed "$SVC_COMFY"  && { svc_down "$SVC_COMFY";  wait_down "ComfyUI"    up_comfy; }
+  svc_installed "$SVC_TLS" && { svc_down "$SVC_TLS"; wait_down "HTTPS" up_tls; }
   svc_installed "$SVC_TTS" && { svc_down "$SVC_TTS"; wait_down "TTS router" up_tts; }
   svc_installed "$SVC_KOKORO" && { svc_down "$SVC_KOKORO"; wait_down "Kokoro TTS" up_kokoro; }
   svc_installed "$SVC_TERMINAL" && { svc_down "$SVC_TERMINAL"; wait_down "Terminal"  up_terminal; }
@@ -255,8 +266,8 @@ cmd_stop() {
 
   sweep_residue
 
-  local ports; ports=$(lsof -nP -iTCP:8080 -iTCP:11434 -iTCP:8188 -iTCP:8880 -iTCP:8881 -iTCP:8888 -iTCP:8001 -iTCP:8002 -sTCP:LISTEN -t 2>/dev/null | tr '\n' ' ')
-  [ -n "$ports" ] && bad "ports still bound by pid(s): $ports" || ok "ports 8080/11434/8188/8880/8881/8888/8001/8002 released"
+  local ports; ports=$(lsof -nP -iTCP:8080 -iTCP:11434 -iTCP:8188 -iTCP:8880 -iTCP:8881 -iTCP:8443 -iTCP:8888 -iTCP:8001 -iTCP:8002 -sTCP:LISTEN -t 2>/dev/null | tr '\n' ' ')
+  [ -n "$ports" ] && bad "ports still bound by pid(s): $ports" || ok "ports 8080/8443/11434/8188/8880/8881/8888/8001/8002 released"
   info "stays stopped across reboots until: myai start"
 }
 
@@ -266,6 +277,7 @@ cmd_status() {
   if svc_installed "$SVC_COMFY";  then up_comfy  && ok "ComfyUI    $COMFY_URL  (loopback only)"  || bad "ComfyUI    not running"; fi
   if svc_installed "$SVC_KOKORO"; then up_kokoro && ok "Kokoro TTS $KOKORO_URL  (loopback only)" || bad "Kokoro TTS not running"; fi
   if svc_installed "$SVC_TTS"; then up_tts && ok "TTS router $TTS_URL  (loopback only)" || bad "TTS router not running"; fi
+  if svc_installed "$SVC_TLS"; then up_tls && ok "HTTPS      https://127.0.0.1:${TLS_PORT}  (voice needs this off-machine)" || bad "HTTPS not running"; fi
   if svc_installed "$SVC_JUPYTER"; then up_jupyter && ok "Jupyter    $JUPYTER_URL  (code interpreter)" || bad "Jupyter    not running"; fi
   if svc_installed "$SVC_TERMINAL"; then
     up_terminal && ok "Terminal   $TERMINAL_URL  (read-only shell)" || bad "Terminal   not running"
@@ -279,12 +291,20 @@ cmd_status() {
   fi
   if up_webui; then
     ok "Open WebUI $WEBUI_URL"
-    local ip; ip=$(lan_ip); [ -n "$ip" ] && info "LAN: http://${ip}:${WEBUI_PORT}"
+    # Advertise the HTTPS address when it exists. The plain one works for chat
+    # but browsers withhold the microphone from it, so pointing people at it is
+    # how they end up with voice controls that render and then fail.
+    local ip; ip=$(lan_ip)
+    if [ -n "$ip" ]; then
+      if up_tls; then info "LAN: https://${ip}:${TLS_PORT}  (voice works here)"
+                     info "     http://${ip}:${WEBUI_PORT}  (no microphone — insecure origin)"
+      else info "LAN: http://${ip}:${WEBUI_PORT}  (no microphone off-machine; see setup-tls)"; fi
+    fi
   else bad "Open WebUI not running"; fi
 
   printf '\n  %sservices%s\n' "$DIM" "$OFF"
   if [ "$OS" = mac ]; then
-    launchctl list 2>/dev/null | grep -E 'openwebui|ollama|comfyui|kokoro|ttsrouter|jupyter|mcpo|terminal' | sed 's/^/    /' || echo "    (none loaded)"
+    launchctl list 2>/dev/null | grep -E 'openwebui|ollama|comfyui|kokoro|ttsrouter|caddy|jupyter|mcpo|terminal' | sed 's/^/    /' || echo "    (none loaded)"
   else
     systemctl --user list-units --type=service --no-legend 'myai-*' 2>/dev/null | sed 's/^/    /' || echo "    (none loaded)"
   fi
@@ -298,6 +318,7 @@ cmd_logs() {
     comfy)  d="$COMFY_LOG_DIR";  u="$SVC_COMFY"  ;;
     kokoro) d="$KOKORO_LOG_DIR"; u="$SVC_KOKORO" ;;
     tts)    d="$TTS_LOG_DIR";    u="$SVC_TTS" ;;
+    tls)    d="$TLS_LOG_DIR";    u="$SVC_TLS" ;;
     jupyter) d="$JUPYTER_LOG_DIR"; u="$SVC_JUPYTER" ;;
     mcp|mcpo) d="$MCPO_LOG_DIR";   u="$SVC_MCPO"   ;;
     term|terminal) d="$TERMINAL_LOG_DIR"; u="$SVC_TERMINAL" ;;
@@ -323,7 +344,7 @@ cmd_backup() {
   if up_webui; then was_up=1; svc_down "$SVC_WEBUI"; wait_down "Open WebUI" up_webui; fi
 
   local extra=()
-  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
+  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.caddy.tls.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
   [ "$OS" = linux ] && [ -d "$HOME/.config/systemd/user" ] && extra=(-C "$HOME/.config/systemd/user" .)
 
   # --exclude MUST precede the paths it applies to. bsdtar (the macOS default)
@@ -529,6 +550,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs comfy   tail ComfyUI logs
   myai logs kokoro  tail Kokoro logs
   myai logs tts     tail TTS router logs
+  myai logs tls     tail HTTPS proxy logs
   myai logs jupyter tail Jupyter (code interpreter) logs
   myai logs mcpo    tail MCP tool server logs
   myai logs terminal tail terminal server logs
