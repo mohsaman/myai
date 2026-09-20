@@ -58,7 +58,7 @@ Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
-| `qwen3.6:27b` | 18 GB | Everything — chat, images, code, tool use. Dense, 32k context | — |
+| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use. Dense, 32k context | — |
 | `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
@@ -96,7 +96,7 @@ Suggested models — swap freely, these are what the defaults assume:
 brew install ollama
 brew services start ollama
 
-ollama pull qwen3.6:27b          # chat, images, code, tools
+ollama pull qwen3.8:27b-mlx          # chat, images, code, tools
 ollama pull qwen2.5:3b           # background tasks — keep this one small
 ollama pull nomic-embed-text     # embeddings
 ```
@@ -242,7 +242,7 @@ sudo systemctl disable --now ollama
 Then pull the models — identical to macOS:
 
 ```bash
-ollama pull qwen3.6:27b
+ollama pull qwen3.8:27b-mlx
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
@@ -415,6 +415,34 @@ Point it at `8880` instead and you get Kokoro alone: excellent English, and ever
 language read with an English accent. The router speaks the same OpenAI protocol, so
 nothing else in the configuration changes.
 
+### Voice and dictation need HTTPS off-machine
+
+Voice mode and dictation work at `http://127.0.0.1:8080` and fail everywhere else,
+including your own LAN address. The cause is a browser rule, not this stack: the
+microphone is only available in a **secure context**, and browsers implement that by
+making `navigator.mediaDevices` *undefined* on an insecure origin rather than by denying
+permission. So the controls render, then fail with nothing informative.
+
+`localhost` counts as secure. `http://192.168.1.x:8080` does not.
+
+```bash
+brew install mkcert caddy
+mkcert -install                 # once, asks for your password
+./scripts/setup-tls.sh          # certificate + reverse proxy config
+caddy run --config ~/.open-webui/tls/Caddyfile
+```
+
+Then use `https://<your-lan-ip>:8443`. Open WebUI keeps its plain listener on 8080 for
+loopback, so nothing that already worked stops working.
+
+Chrome's `unsafely-treat-insecure-origin-as-secure` flag is supposed to solve this without
+a certificate. It did not work here, and it would not help Safari or a phone, neither of
+which can set Chrome flags — so it is worth knowing about and not worth relying on.
+
+Other devices must trust the CA at `~/Library/Application Support/mkcert/rootCA.pem`
+before the microphone works there. On iOS that means installing it as a profile and then
+enabling it under **General → About → Certificate Trust Settings**.
+
 ### Speech-to-text
 
 Engine: leave **empty** (local faster-whisper). Set Whisper Model to `small` — the `base`
@@ -443,7 +471,7 @@ failing with *"does not support tools"* whenever an integration toggle is on. If
 one, set that model's **Function Calling: Legacy**.
 
 This used to force a choice — read the image *or* use tools. It no longer does:
-`qwen3.6:27b` reports `vision` and `tools` together, so one model covers both. Check with
+`qwen3.8:27b-mlx` reports `vision` and `tools` together, so one model covers both. Check with
 `ollama show <model>` before assuming; the capability list is authoritative and the model's
 own description is not.
 
@@ -581,7 +609,7 @@ Everything below is off by default in a new chat. Open the **+** menu in the mes
 box and switch on what you need — nothing attaches automatically, and a model with no
 tools will happily invent output rather than admit it cannot act.
 
-**Qwen3.6 27B** reports `tools` alongside `vision`, so it chooses tools itself rather than
+**Qwen3.8 27B** reports `tools` alongside `vision`, so it chooses tools itself rather than
 waiting to be told, and does not have to be swapped out to read an image. Verify with
 `ollama show <model>` before assuming a model can do both — the capability list is
 authoritative where a model card's prose is not.
@@ -863,7 +891,7 @@ reads that, not `GOOSE_MODEL` alone:
 ```yaml
 providers:
   ollama:
-    model: qwen3.6:27b
+    model: qwen3.8:27b-mlx
 ```
 
 Honest expectation: a 3B-active model is a capable assistant for "run this, read that,

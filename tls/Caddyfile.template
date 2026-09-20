@@ -1,0 +1,27 @@
+# TLS in front of Open WebUI.
+#
+# The browser will not grant a microphone on an insecure origin -- navigator
+# .mediaDevices is not merely blocked, it does not exist. localhost counts as
+# secure, a LAN IP does not, which is why voice worked on 127.0.0.1 and nowhere
+# else. Chrome's unsafely-treat-insecure-origin-as-secure flag is meant to cover
+# this and did not, so this terminates TLS properly instead.
+#
+# Open WebUI keeps listening on 8080 in plain HTTP for loopback use; this adds
+# 8443 for everything else.
+
+{
+	admin off
+	auto_https off
+}
+
+https://__LAN_IP__:8443, https://localhost:8443 {
+	tls __TLS_DIR__/__LAN_IP__+3.pem __TLS_DIR__/__LAN_IP__+3-key.pem
+
+	# Open WebUI uses websockets for streaming replies and for voice mode;
+	# reverse_proxy upgrades them by default, but the headers matter so the
+	# app builds correct absolute URLs behind the proxy.
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+}

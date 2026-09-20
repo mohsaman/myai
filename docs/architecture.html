@@ -80,7 +80,7 @@
     <div class="card entry wide">
       <div class="name">Open WebUI <span class="tag open">LAN</span></div>
       <div class="port">127.0.0.1:8080</div>
-      <div class="desc">Chat, file upload, voice, model switching. The only service bound beyond loopback — everything else is reachable only through it.</div>
+      <div class="desc">Chat, file upload, voice, model switching. The only service bound beyond loopback. Voice needs HTTPS off-machine — browsers withhold the microphone from an insecure origin, so a TLS proxy fronts it on 8443.</div>
     </div>
     <div class="card entry">
       <div class="name">goose</div>
@@ -109,16 +109,16 @@
 </div>
 
 <div class="band">
-  <div class="band-label">Models — 20&nbsp;GB on disk</div>
+  <div class="band-label">Models — 19&nbsp;GB on disk</div>
   <table>
     <tr>
       <th style="width:19%">Model</th><th style="width:9%">Size</th>
       <th style="width:9%">Active</th><th>What it is for</th>
     </tr>
     <tr>
-      <td><b>qwen3.6:27b</b> <span class="tag open">the model</span></td>
-      <td class="mono">17.8 GB</td><td class="mono">27B</td>
-      <td class="d">The one you talk to. Dense, so every parameter fires on every token, and the only one here doing vision <i>and</i> tools — so chat, images, code and tool use are all the same model. Its KV cache is heavy at 138 KiB/token, which caps context at 32k.</td>
+      <td><b>qwen3.8:27b-mlx</b> <span class="tag open">the model</span></td>
+      <td class="mono">18.5 GB</td><td class="mono">27B</td>
+      <td class="d">The one you talk to. Dense, so every parameter fires on every token, and the only one here doing vision <i>and</i> tools — so chat, images, code and tool use are all the same model. Apple Silicon build. Its KV cache measures 98 KiB/token, which caps context at 40k — measured, because the architecture implies 34 and that would not have fit.</td>
     </tr>
     <tr>
       <td><b>qwen2.5:3b</b></td>

@@ -22,7 +22,7 @@ under a minute.
 |---|---|
 | "How much disk is free, and what is using it?" *(switch on **Terminal**)* | it runs real commands and reads the output |
 | "Plot the last 30 days of anything from this CSV" *(attach a file, switch on **Code Interpreter**)* | a real Python kernel, not a sandbox |
-| Paste a screenshot: "what is wrong with this config?" *(pick **Qwen3.6 27B**)* | it reads images |
+| Paste a screenshot: "what is wrong with this config?" *(pick **Qwen3.8 27B**)* | it reads images |
 | "Generate an image of a lighthouse at dusk" *(image icon)* | SDXL on the local GPU |
 | "What changed in the latest Ollama release?" | it searches the web and says so |
 | "Present that as an infographic" | a rendered HTML page, not ASCII art |
@@ -35,7 +35,7 @@ This matters more than any other setting. The models are not interchangeable.
 
 | Entry | What it is |
 |---|---|
-| **Qwen3.6 27B** | the model. Chat, images, code, tool use — dense, so every parameter fires per token |
+| **Qwen3.8 27B** | the model. Chat, images, code, tool use — dense, so every parameter fires per token |
 | **Telecom Expert** | a *preset*: the same weights with a system prompt that greps the spec corpus |
 | **Qwen3 Explorer** | a *preset*: same weights, prompted to take a position rather than survey |
 
@@ -44,14 +44,15 @@ handles chat titling in the background, and an embedding model serves retrieval.
 
 The thing worth knowing:
 
-**Its context caps at 32k**, which is low for a model advertising 256k. The KV cache costs
-138 KiB per token — nearly three times a comparable model — and weights plus cache have to
-fit in 24 GB. For anything longer, split the document rather than hoping.
+**Its context caps at 40k**, low for a model advertising 256k. The KV cache measures
+98 KiB per token, and weights plus cache have to fit in 24 GB. That figure is measured,
+not derived — the architecture implies 34 KiB, and trusting the derivation would set a
+window needing 30 GB. For longer documents, split them rather than hoping.
 
-**Turn thinking off for short non-English work.** Asked for a one-line message in Persian,
-Qwen3.6 spent 500 tokens reasoning and returned nothing usable. The same prompt with
-`think: false` answered correctly in 16 tokens. The reasoning block earns its cost on hard
-problems and is pure latency on "write me a sentence".
+**Turn thinking off for short prompts.** Asked to write one sentence greeting a colleague,
+the model spent 33 seconds and 300 tokens reasoning and returned **nothing at all**. The
+same prompt with `think: false` answered in 1.7 seconds and 10 tokens. That is not a tuning
+preference — with thinking on, short requests can come back empty.
 
 ---
 
@@ -104,10 +105,10 @@ terminal, this is **not** restricted — Python there can do anything your accou
 
 ### Look at images
 
-Pick **Qwen3.6 27B** and paste or attach. Screenshots, diagrams, tables, scanned
+Pick **Qwen3.8 27B** and paste or attach. Screenshots, diagrams, tables, scanned
 documents, error dialogs. It is the only model here that does vision *and* tool calling, so
 you no longer have to switch model to read an image with an integration toggle on. Being a
-dense 27B it is slower than a small vision specialist — expect tens of seconds, not eight.
+Apple Silicon build, so faster than the generic one — around 17 tokens/second warm.
 
 ### Generate images
 
@@ -329,6 +330,7 @@ and it takes a couple of minutes.
 | Replies suddenly very slow | memory pressure — `sysctl vm.swapusage`; two models resident at once |
 | Empty reply from a thinking model | token budget consumed by reasoning; not a crash |
 | "I cannot access X" | the capability exists but the toggle is off — check **+** menu |
+| Microphone permission denied | you are on an http LAN address; browsers only allow the mic on a secure origin — use `127.0.0.1` or set up HTTPS |
 | "I have no network access" | almost always false — see below |
 | It refuses, and rephrasing keeps failing | the refusal is in the context now; start a new chat, do not rewrite the prompt |
 | It asks for a password you should not need | it did not try; key auth often already works |
