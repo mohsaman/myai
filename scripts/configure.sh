@@ -8,7 +8,7 @@ set -uo pipefail
 
 BASE="${OPENWEBUI_URL:-http://127.0.0.1:8080}"
 TASK_MODEL="${TASK_MODEL:-qwen2.5:3b}"
-CHAT_MODEL="${CHAT_MODEL:-qwen3.6:27b}"
+CHAT_MODEL="${CHAT_MODEL:-qwen3.8:27b-mlx}"
 EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
 STT_MODEL="${STT_MODEL:-small}"
@@ -123,7 +123,7 @@ def embed():
 try_("embeddings -> " + os.environ["EMBED_MODEL"], embed)
 
 # 6. Per-model display names, capabilities and function calling.
-#    The dropdown otherwise shows raw ids like "qwen3.6:27b", which say nothing
+#    The dropdown otherwise shows raw ids like "qwen3.8:27b-mlx", which say nothing
 #    about what each model is for — so each gets its use in parentheses.
 #
 #    legacy function calling = Open WebUI drives tools itself, instead of offering
@@ -143,7 +143,7 @@ import urllib.parse
 seen = set()
 MODELS = []
 for _row in [
-    (os.environ["CHAT_MODEL"],  "Qwen3.6 27B", "chat, images, code, tools",     True,  False, False),
+    (os.environ["CHAT_MODEL"],  "Qwen3.8 27B", "chat, images, code, tools",     True,  False, False),
     (os.environ["TASK_MODEL"],  "Qwen2.5 3B",  "background tasks",              False, False, True),
     (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True),
 ]:

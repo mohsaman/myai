@@ -22,7 +22,7 @@ under a minute.
 |---|---|
 | "How much disk is free, and what is using it?" *(switch on **Terminal**)* | it runs real commands and reads the output |
 | "Plot the last 30 days of anything from this CSV" *(attach a file, switch on **Code Interpreter**)* | a real Python kernel, not a sandbox |
-| Paste a screenshot: "what is wrong with this config?" *(pick **Qwen3.8 27B**)* | it reads images |
+| Paste a screenshot: "what is wrong with this config?" | it reads images — same model, no switching |
 | "Generate an image of a lighthouse at dusk" *(image icon)* | SDXL on the local GPU |
 | "What changed in the latest Ollama release?" | it searches the web and says so |
 | "Present that as an infographic" | a rendered HTML page, not ASCII art |
@@ -35,7 +35,7 @@ This matters more than any other setting. The models are not interchangeable.
 
 | Entry | What it is |
 |---|---|
-| **Qwen3.8 27B** | the model. Chat, images, code, tool use — dense, so every parameter fires per token |
+| **Qwen3.8 27B** | the model. Chat, images, code, tool use — Apple Silicon build, ~17 tok/s |
 | **Telecom Expert** | a *preset*: the same weights with a system prompt that greps the spec corpus |
 | **Qwen3 Explorer** | a *preset*: same weights, prompted to take a position rather than survey |
 

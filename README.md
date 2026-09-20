@@ -58,7 +58,7 @@ Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
-| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use. Dense, 32k context | — |
+| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use. Dense, 40k context | 17 tok/s |
 | `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
@@ -95,6 +95,11 @@ Suggested models — swap freely, these are what the defaults assume:
 ```bash
 brew install ollama
 brew services start ollama
+
+> This model needs **ollama 0.34 or newer** — older versions reject the manifest with
+> *"requires a newer version of Ollama"* and a 412, before downloading anything. The
+> `-mlx` build is compiled for Apple Silicon and is roughly twice the speed of the generic
+> one on an M-series Mac; on any other platform use `qwen3.8:27b`.
 
 ollama pull qwen3.8:27b-mlx          # chat, images, code, tools
 ollama pull qwen2.5:3b           # background tasks — keep this one small
@@ -242,7 +247,7 @@ sudo systemctl disable --now ollama
 Then pull the models — identical to macOS:
 
 ```bash
-ollama pull qwen3.8:27b-mlx
+ollama pull qwen3.8:27b        # -mlx is Apple Silicon only; this is the portable build
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
