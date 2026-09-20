@@ -29,6 +29,17 @@ install -m 0755 "$HERE/bin/myai" "$BIN/myai" && ok "installed $BIN/myai"
 install -m 0755 "$HERE/scripts/fetch-specs.sh" "$BIN/fetch-specs" && ok "installed $BIN/fetch-specs"
 install -m 0755 "$HERE/scripts/render-html.sh" "$BIN/render-html" && ok "installed $BIN/render-html"
 install -m 0755 "$HERE/scripts/set-context.sh" "$BIN/set-context" && ok "installed $BIN/set-context"
+
+# goose recipes: named entry points you run with `goose run --recipe <name>`.
+# Installed rather than symlinked so editing one does not change the repo.
+if [ -d "$HERE/goose/recipes" ]; then
+  mkdir -p "$HOME/.config/goose/recipes"
+  for r in "$HERE"/goose/recipes/*.yaml; do
+    [ -e "$r" ] || continue
+    install -m 0644 "$r" "$HOME/.config/goose/recipes/$(basename "$r")" \
+      && ok "installed recipe $(basename "$r" .yaml)"
+  done
+fi
 case ":$PATH:" in
   *":$BIN:"*) ;;
   *) info "add to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;

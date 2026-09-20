@@ -242,6 +242,55 @@ def behaviour(model_id):
 try_(f"web + visual behaviour -> {os.environ['CHAT_MODEL']}",
      lambda: behaviour(os.environ["CHAT_MODEL"]))
 try_("prune entries whose model is gone", prune)
+
+# 6. A slash command for spec work, instead of a whole model entry.
+#    The domain guidance does not need its own model in the picker -- it is a
+#    prompt, and Open WebUI can inject one on demand. /telecom keeps the dropdown
+#    to a single entry while leaving the behaviour a keystroke away.
+TELECOM_PROMPT = r"""Answer as a wireless software engineer building production systems for tier-1
+operators: 3GPP Rel-8 to Rel-18 (EPC, 5GC, IMS, SMS, roaming), core network functions
+(MME, HSS, UDM, AMF, SMF, UPF, PCF, PCRF, SMSF, SMSC), and the protocols between them --
+Diameter (S6a, Gx, Gy, Rx, Sh), SS7/SIGTRAN (M3UA, SCCP, TCAP, MAP), GTP, PFCP, SCTP,
+NGAP, NAS, SIP/IMS. Also eSIM (SGP.02/.22/.32) and roaming (TAP3, NRTRDE, IR.21).
+
+THE SPECIFICATIONS ARE ON DISK. Use them, with the Terminal tool:
+
+  ls ~/specs                                       # what is available
+  grep -n "IMSI unknown in HSS" ~/specs/3GPP-24.301.txt
+  grep -n "^9\.9\.3\.9" ~/specs/3GPP-24.301.txt   # a specific clause
+  sed -n '4195,4215p' ~/specs/3GPP-24.301.txt      # read around a hit
+
+Rules:
+- Never cite a clause you have not grepped. Asked which EMM cause maps to
+  DIAMETER_ERROR_USER_UNKNOWN, a model answered "#1, section 9.9.2.1" with complete
+  confidence. The real answer, one grep away, is "#2 (IMSI unknown in HSS)". A wrong
+  reference gets copied into a code comment and outlives everyone who saw it.
+- Quote the document's words, then paraphrase. Cite file and line: 3GPP-24.301.txt:4205.
+- If the document is not in ~/specs, say so and tell me to run: fetch-specs 24.301
+- If the corpus contradicts what you remember, the corpus is right.
+- Separate what you verified from what you are inferring.
+
+If the Terminal tool is not switched on in this conversation, say so plainly and ask me
+to enable it rather than answering from memory.
+
+Production-grade, not prototypes. Explicit over clever -- ops teams maintain this. Handle
+the failure paths: retries, timeouts, failover, graceful degradation. Flag any deviation
+from the standard explicitly.
+
+My question:
+"""
+
+def telecom_prompt():
+    payload = {"command": "/telecom", "title": "Telecom Expert",
+               "content": TELECOM_PROMPT}
+    try:
+        call("/api/v1/prompts/create", payload)
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 409):
+            call("/api/v1/prompts/command/telecom/update", payload)
+        else:
+            raise
+try_("slash command /telecom", telecom_prompt)
 PY
 
 echo

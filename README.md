@@ -971,6 +971,20 @@ SKILLS_SOURCE=~/.someagent/skills ./scripts/sync-skills.sh --force   # re-copy, 
 Point `SKILLS_SOURCE` at whichever directory your other agent keeps its skills in. The
 script derives everything else from that path, so it works for any of them.
 
+### Calling the domain prompt on demand
+
+Spec work does not need its own entry in the model picker — it is a prompt, not a model.
+Both interfaces can inject it when asked:
+
+```bash
+# in Open WebUI: type /telecom in the message box
+# in goose:
+goose run --recipe telecom --params question="which EMM cause maps to DIAMETER_ERROR_USER_UNKNOWN?"
+```
+
+Both tell the model to grep `~/specs` and cite `file:line` rather than answering from
+memory. `configure.sh` creates the slash command; `install.sh` installs the recipe.
+
 `SKILLS_SKIP` names skills that must not reach goose — anything carrying work or client
 material:
 
