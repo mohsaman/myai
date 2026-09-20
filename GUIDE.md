@@ -33,27 +33,20 @@ under a minute.
 
 This matters more than any other setting. The models are not interchangeable.
 
-| Model | Use it for | Avoid it for |
-|---|---|---|
-| **Qwen3 30B** | general chat, reasoning, tool use — the default | nothing much; it is the all-rounder |
-| **Qwen3 Explorer** | when you want a position, not a survey — it challenges the question | quick factual lookups; it is slower and blunter |
-| **GPT-OSS 20B** | long-context reading, 128k window | agentic loops — it invents tools that do not exist |
-| **Qwen3.6 27B** | hard work — images, code, tool use. Dense, so every parameter fires | long documents; its context caps at 32k |
-| **Qwen2.5 3B** | instant factual answers | anything needing thought |
-| **Telecom Expert** | standards questions — it greps the spec corpus | general use |
-| **Aya Expanse 32B** | Persian, and other non-English output | domain terminology; verify what it translates |
+| Entry | What it is |
+|---|---|
+| **Qwen3.6 27B** | the model. Chat, images, code, tool use — dense, so every parameter fires per token |
+| **Telecom Expert** | a *preset*: the same weights with a system prompt that greps the spec corpus |
+| **Qwen3 Explorer** | a *preset*: same weights, prompted to take a position rather than survey |
 
-Two findings worth carrying:
+Two models are installed but hidden, because you should never pick them by hand: a 3B
+handles chat titling in the background, and an embedding model serves retrieval.
 
-**GPT-OSS is the better talker and the worse agent.** It reasons well in conversation
-and repeatedly failed at multi-turn tool use, inventing `container.exec`, `browser.run`
-and `cat` as tools. Use it for reading and thinking, not for doing.
+The thing worth knowing:
 
-**Aya is the safe choice for Persian, and it is measurable.** Across five registers it
-emitted zero Arabic ی/ک where Persian forms are required — a common tell in models trained
-mostly on Arabic, invisible at a glance and breaks search and sorting — used ZWNJ correctly
-in compounds, and put Persian numerals in prose while leaving 5G and 4G in Latin. It also
-has no reasoning block, so a short reply costs ~60 tokens rather than several hundred.
+**Its context caps at 32k**, which is low for a model advertising 256k. The KV cache costs
+138 KiB per token — nearly three times a comparable model — and weights plus cache have to
+fit in 24 GB. For anything longer, split the document rather than hoping.
 
 **Turn thinking off for short non-English work.** Asked for a one-line message in Persian,
 Qwen3.6 spent 500 tokens reasoning and returned nothing usable. The same prompt with
@@ -315,9 +308,9 @@ exists precisely because of this. Treat every unchecked specific as unverified.
 **Reliably expand acronyms in a domain.** Told explicitly not to, it still did — and got
 it wrong a third of the time.
 
-**Hold a long context usefully.** Each model carries its own window, sized to what its
-KV cache allows: 128k for GPT-OSS, 72k for Qwen3, 32k for Qwen3.6. Quality degrades well
-before any of those limits, so a fresh chat beats a long one.
+**Hold a long context usefully.** The window is 32k, set by what the KV cache allows
+rather than what the model advertises. Quality degrades well before that, so a fresh chat
+beats a long one, and a long document wants splitting rather than pasting.
 
 **Ingest documents into knowledge collections.** Open WebUI's RAG pipeline extracts zero
 characters in this build. Use the spec corpus and file attachments instead.

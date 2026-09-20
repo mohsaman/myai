@@ -71,7 +71,7 @@
 </style>
 
 <h1>myai — architecture</h1>
-<p class="sub">Eight services and six models on one machine. Nothing leaves it except a web search the model chooses to make.</p>
+<p class="sub">Eight services and one model on one machine. Nothing leaves it except a web search the model chooses to make.</p>
 <div class="rule"></div>
 
 <div class="band">
@@ -109,36 +109,21 @@
 </div>
 
 <div class="band">
-  <div class="band-label">Models — 72&nbsp;GB on disk, one resident at a time</div>
+  <div class="band-label">Models — 20&nbsp;GB on disk</div>
   <table>
     <tr>
       <th style="width:19%">Model</th><th style="width:9%">Size</th>
       <th style="width:9%">Active</th><th>What it is for</th>
     </tr>
     <tr>
-      <td><b>qwen3:30b-a3b</b> <span class="tag open">default</span></td>
-      <td class="mono">18.6 GB</td><td class="mono">3B</td>
-      <td class="d">General chat, reasoning, tool use. A mixture-of-experts: 30B parameters stored, only 3B activated per token — which is why it is fast, and why it reasons like a much smaller model.</td>
-    </tr>
-    <tr>
-      <td><b>qwen3.6:27b</b></td>
+      <td><b>qwen3.6:27b</b> <span class="tag open">the model</span></td>
       <td class="mono">17.8 GB</td><td class="mono">27B</td>
-      <td class="d">Dense, so every parameter fires on every token — roughly 9× the compute of the default for the same footprint. Also the only model here doing vision <i>and</i> tools, so it covers images and code too. Its KV cache is the heaviest at 138 KiB/token, which caps it at 32k.</td>
-    </tr>
-    <tr>
-      <td><b>aya-expanse:32b</b></td>
-      <td class="mono">19.8 GB</td><td class="mono">32B</td>
-      <td class="d">Composes in Persian and other non-English rather than translating into it. No reasoning block, so ~25× fewer tokens for the same answer.</td>
-    </tr>
-    <tr>
-      <td><b>gpt-oss:20b</b></td>
-      <td class="mono">13.8 GB</td><td class="mono">21B</td>
-      <td class="d">Long-context reading, 128k window. The better talker and the worse agent — it invents tools that do not exist, so not for agentic loops.</td>
+      <td class="d">The one you talk to. Dense, so every parameter fires on every token, and the only one here doing vision <i>and</i> tools — so chat, images, code and tool use are all the same model. Its KV cache is heavy at 138 KiB/token, which caps context at 32k.</td>
     </tr>
     <tr>
       <td><b>qwen2.5:3b</b></td>
       <td class="mono">1.9 GB</td><td class="mono">3B</td>
-      <td class="d">Instant factual answers, and the task model that titles chats in the background.</td>
+      <td class="d">Background only — titles and tags. Hidden from the picker: small enough to sit beside the main model, so titling never evicts it.</td>
     </tr>
     <tr>
       <td><b>nomic-embed-text</b></td>
@@ -147,11 +132,11 @@
     </tr>
   </table>
   <div class="note" style="border-left-color:var(--sky)">
-    <b>Presets are not models.</b> <i>Telecom Expert</i> and <i>Qwen3 Explorer</i> in the
-    picker are system prompts layered over a base model, not separate weights — which is why
-    they cost nothing extra on disk and switch instantly. What they change is framing and
-    tool access, not capability: a preset makes a model <i>sound</i> like a domain expert
-    well before it makes it right.
+    <b>One model, not a menu.</b> The picker shows one entry. The other two are never chosen by hand — one
+    titles chats in the background, the other is called by the retrieval pipeline — so both
+    are hidden rather than offered as choices nobody should make. Presets like
+    <i>Telecom Expert</i> are system prompts over the same weights, costing nothing on disk
+    and switching instantly: they change framing and tool access, not capability.
   </div>
 </div>
 

@@ -8,10 +8,8 @@ set -uo pipefail
 
 BASE="${OPENWEBUI_URL:-http://127.0.0.1:8080}"
 TASK_MODEL="${TASK_MODEL:-qwen2.5:3b}"
-CHAT_MODEL="${CHAT_MODEL:-qwen3:30b-a3b}"
-VISION_MODEL="${VISION_MODEL:-qwen3.6:27b}"
+CHAT_MODEL="${CHAT_MODEL:-qwen3.6:27b}"
 EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
-CODE_MODEL="${CODE_MODEL:-qwen3.6:27b}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
 STT_MODEL="${STT_MODEL:-small}"
 
@@ -26,7 +24,7 @@ TOKEN=$(curl -fsS --max-time 20 -X POST "$BASE/api/v1/auths/signin" \
 [ -z "$TOKEN" ] && { echo "sign-in failed"; exit 1; }
 echo "signed in"
 
-export BASE TOKEN TASK_MODEL CHAT_MODEL VISION_MODEL EMBED_MODEL CODE_MODEL TTS_VOICE STT_MODEL
+export BASE TOKEN TASK_MODEL CHAT_MODEL EMBED_MODEL TTS_VOICE STT_MODEL
 python3 <<'PY'
 import os, json, urllib.request, urllib.error
 BASE, TOKEN = os.environ["BASE"], os.environ["TOKEN"]
@@ -136,13 +134,21 @@ import urllib.parse
 # hidden=True keeps a model out of the chat dropdown. The embedding model is only
 # ever called by the retrieval pipeline (which resolves it against Ollama by name,
 # independently of this list), so it is noise in a chat model picker.
-MODELS = [
-    (os.environ["CHAT_MODEL"],   "Qwen3 30B",        "general chat + web search",                 False, True,  False),
-    (os.environ["VISION_MODEL"], "Qwen2.5-VL 7B",    "vision \u2014 reads images",                  True,  True,  False),
-    (os.environ["CODE_MODEL"],   "Qwen2.5 Coder 14B","writing & reviewing code",                  False, False, False),
-    (os.environ["TASK_MODEL"],   "Qwen2.5 3B",       "fast \u2014 titles, tags, background tasks",  False, False, False),
-    (os.environ["EMBED_MODEL"],  "Nomic Embed",      "embeddings \u2014 not for chat",              False, False, True),
-]
+# One model does chat, images, code and tools, so the picker shows one entry.
+# The other two are never chosen by hand -- the task model runs titling in the
+# background, the embedding model is called by the retrieval pipeline -- so both
+# are hidden rather than offered as choices nobody should make. De-duplicated by
+# id, because several role variables can legitimately name the same model.
+seen = set()
+MODELS = []
+for _row in [
+    (os.environ["CHAT_MODEL"],  "Qwen3.6 27B", "chat, images, code, tools",     True,  False, False),
+    (os.environ["TASK_MODEL"],  "Qwen2.5 3B",  "background tasks",              False, False, True),
+    (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True),
+]:
+    if _row[0] and _row[0] not in seen:
+        seen.add(_row[0])
+        MODELS.append(_row)
 
 def setup(model_id, label, suffix, vision, legacy, hidden):
     payload = {
@@ -206,8 +212,8 @@ def behaviour(model_id):
          {"id": model_id, "name": cur["name"], "base_model_id": cur.get("base_model_id"),
           "params": params, "meta": meta})
 
-for mid in (os.environ["CHAT_MODEL"], os.environ["CODE_MODEL"]):
-    try_(f"web + visual behaviour -> {mid}", lambda a=mid: behaviour(a))
+try_(f"web + visual behaviour -> {os.environ['CHAT_MODEL']}",
+     lambda: behaviour(os.environ["CHAT_MODEL"]))
 PY
 
 echo

@@ -58,9 +58,7 @@ Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
-| `qwen3:30b-a3b` | 18 GB | Chat, reasoning, web search | 50.9 tok/s |
-| `gpt-oss:20b` | 13 GB | Agentic work — native tool calling | 28.8 tok/s |
-| `qwen3.6:27b` | 18 GB | Deep work — vision, tools, code. Dense, so every parameter fires | — |
+| `qwen3.6:27b` | 18 GB | Everything — chat, images, code, tool use. Dense, 32k context | — |
 | `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
@@ -98,8 +96,7 @@ Suggested models — swap freely, these are what the defaults assume:
 brew install ollama
 brew services start ollama
 
-ollama pull qwen3:30b-a3b        # chat + reasoning
-ollama pull qwen3.6:27b           # deep work: vision, tools, code
+ollama pull qwen3.6:27b          # chat, images, code, tools
 ollama pull qwen2.5:3b           # background tasks — keep this one small
 ollama pull nomic-embed-text     # embeddings
 ```
@@ -245,8 +242,7 @@ sudo systemctl disable --now ollama
 Then pull the models — identical to macOS:
 
 ```bash
-ollama pull qwen3:30b-a3b
-ollama pull qwen3.6:27b           # deep work: vision, tools, code
+ollama pull qwen3.6:27b
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
@@ -585,8 +581,10 @@ Everything below is off by default in a new chat. Open the **+** menu in the mes
 box and switch on what you need — nothing attaches automatically, and a model with no
 tools will happily invent output rather than admit it cannot act.
 
-Use **GPT-OSS 20B** for anything involving tools. It is the model configured for native
-function calling, so it chooses tools itself instead of waiting to be told.
+**Qwen3.6 27B** reports `tools` alongside `vision`, so it chooses tools itself rather than
+waiting to be told, and does not have to be swapped out to read an image. Verify with
+`ollama show <model>` before assuming a model can do both — the capability list is
+authoritative where a model card's prose is not.
 
 ### Terminal — ask about the machine
 
@@ -851,13 +849,13 @@ asking each model to find the CPU core count:
 
 | Model | Result |
 |---|---|
-| `qwen3:30b-a3b` | ran `sysctl -n hw.ncpu`, answered correctly, first try |
-| `gpt-oss:20b` | malformed tool call, and assumed Linux — read `/proc/cpuinfo` on a Mac |
+| a MoE with 3B active | ran `sysctl -n hw.ncpu`, answered correctly, first try |
+| a 20B with weak tool training | malformed tool call, and assumed Linux — read `/proc/cpuinfo` on a Mac |
 
-Across further sessions gpt-oss also invented three tools that do not exist
-(`container.exec`, `browser.run`, `cat`) and sent tool calls missing required fields.
-It is a capable chat model; it is not a reliable agent. The config therefore defaults
-to qwen3.
+The second also invented three tools that do not exist (`container.exec`, `browser.run`,
+`cat`) and sent tool calls missing required fields. Tool-calling reliability is a property
+of training, not size: check it on your own model before trusting an agentic loop, because
+a model that chats well can still be a poor agent.
 
 Change the model in the `providers` block of `~/.config/goose/config.yaml` — goose
 reads that, not `GOOSE_MODEL` alone:
@@ -865,7 +863,7 @@ reads that, not `GOOSE_MODEL` alone:
 ```yaml
 providers:
   ollama:
-    model: qwen3:30b-a3b
+    model: qwen3.6:27b
 ```
 
 Honest expectation: a 3B-active model is a capable assistant for "run this, read that,
