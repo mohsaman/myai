@@ -6,109 +6,136 @@
 <title>Secure, Local AI</title>
 <style>
   :root{
-    --bg:#0b0f1e; --panel:#151d34; --line:#2a3454;
-    --ink:#f1f5ff; --dim:#9aa6c7; --accent:#6ee7b7; --accent2:#7dd3fc;
+    --bg:#0b0f1e; --panel:#151d34; --panel2:#1b2440;
+    --ink:#f1f5ff; --dim:#98a4c6; --line:#2a3454;
+    --accent:#6ee7b7; --accent2:#7dd3fc; --amber:#fbbf24;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
        -webkit-font-smoothing:antialiased}
-  .wrap{width:1200px;margin:0 auto;padding:64px 64px 48px}
+  .wrap{max-width:1180px;margin:0 auto;padding:56px 48px 44px}
 
   h1{margin:0;font-size:52px;letter-spacing:-1.8px;line-height:1.06;max-width:900px}
-  h1 span{color:var(--accent);padding-left:.14em}
-  .sub{margin-top:18px;color:var(--dim);font-size:20px;line-height:1.55;max-width:780px}
+  h1 span{color:var(--accent)}
+  .sub{margin:18px 0 0;max-width:780px;font-size:17px;line-height:1.55;color:var(--dim)}
+  .sub b{color:var(--ink);font-weight:600}
 
   h2{font-size:12px;letter-spacing:2.4px;text-transform:uppercase;color:var(--accent2);
-     margin:52px 0 22px;font-weight:700}
+     margin:44px 0 16px;display:flex;align-items:center;gap:14px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
 
-  .comp{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-  .c{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px}
-  .cn{font-size:15px;font-weight:650;color:var(--accent2);margin-bottom:6px}
-  .cd{font-size:13px;color:var(--dim);line-height:1.5}
+  /* the one model */
+  .hero{background:linear-gradient(100deg,rgba(110,231,183,.10),rgba(125,211,252,.05)),var(--panel);
+        border:1px solid var(--line);border-left:3px solid var(--accent);
+        border-radius:12px;padding:22px 26px;display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .hero .who{flex:1 1 300px;min-width:280px}
+  .hero .nm{font-size:23px;font-weight:650;letter-spacing:-.4px}
+  .hero .tag{font-size:12px;color:var(--accent);letter-spacing:.4px;margin-top:4px;
+             font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .hero .txt{margin-top:11px;font-size:14px;line-height:1.55;color:var(--dim);max-width:430px}
+  .spec{display:flex;gap:26px;flex-wrap:wrap}
+  .spec div{min-width:88px}
+  .spec .v{font-size:25px;font-weight:650;letter-spacing:-.5px}
+  .spec .v small{font-size:12px;font-weight:500;color:var(--dim);margin-left:3px}
+  .spec .k{font-size:11px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
 
-  .stack{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-  .s{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px}
-  .s .t{font-size:19px;font-weight:650;margin-bottom:8px}
-  .s .t em{font-style:normal;color:var(--accent);font-size:15px;font-weight:500;margin-left:8px}
-  .s .d{font-size:15px;color:var(--dim);line-height:1.6}
+  /* generic card rows */
+  .row{display:flex;gap:13px;flex-wrap:wrap}
+  .c{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+     padding:13px 16px;flex:1 1 0;min-width:168px}
+  .c.b{border-left:3px solid var(--accent2)}
+  .c .cn{font-weight:600;font-size:14px}
+  .c .cp{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--accent);margin-top:2px}
+  .c .cd{color:var(--dim);font-size:12.5px;margin-top:7px;line-height:1.45}
 
-  .nums{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:22px}
-  .n{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px}
-  .n .v{font-size:38px;font-weight:700;letter-spacing:-1.4px;color:var(--accent)}
-  .n .v small{font-size:16px;font-weight:500;color:var(--dim);margin-left:4px}
-  .n .l{font-size:14px;color:var(--dim);margin-top:6px;line-height:1.5}
+  /* measured table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--dim);font-weight:500;font-size:10.5px;letter-spacing:.1em;
+     text-transform:uppercase;border-bottom:1px solid var(--line);padding:0 12px 8px 0}
+  td{padding:9px 12px 9px 0;border-bottom:1px solid rgba(42,52,84,.5);vertical-align:top}
+  td.m{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent);white-space:nowrap}
+  td.d{color:var(--dim)}
+  tr:last-child td{border-bottom:none}
 
-  .close{margin-top:52px;padding:30px 34px;border-radius:16px;
-         background:linear-gradient(90deg,rgba(110,231,183,.10),rgba(125,211,252,.05));
-         border:1px solid var(--line)}
-  .close p{margin:0;font-size:19px;line-height:1.6;color:var(--ink);max-width:930px}
-  .close p b{color:var(--accent)}
-  .close .note{margin-top:14px;font-size:14px;color:var(--dim);line-height:1.55}
+  .close{margin-top:44px;padding:22px 26px;background:var(--panel2);
+         border:1px solid var(--line);border-radius:12px}
+  .close p{margin:0;font-size:16px;line-height:1.6}
+  .close b{color:var(--accent)}
+  .note{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);
+        font-size:12.5px;color:var(--dim);line-height:1.55}
+  .note b{color:var(--ink);font-weight:600}
 
-  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);
-         color:var(--dim);font-size:13px}
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
+         font-size:11.5px;color:var(--dim);letter-spacing:.3px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <h1>Secure, <span>local AI</span></h1>
-  <div class="sub">Chat, code, vision, image generation and speech — built from open-weight
-    models on a 32 GB machine. Nothing is sent to a provider.</div>
+  <p class="sub">Chat, code, vision, image generation and speech — from open weights on a
+    32&nbsp;GB machine. <b>One model answers everything.</b> Nothing is sent to a provider.</p>
 
-  <h2>The stack</h2>
-  <div class="comp">
-    <div class="c"><div class="cn">Ollama</div><div class="cd">Runs the language models and serves them locally</div></div>
-    <div class="c"><div class="cn">Open WebUI</div><div class="cd">The browser interface — chat, files, voice, model switching</div></div>
-    <div class="c"><div class="cn">ComfyUI + SDXL</div><div class="cd">Image generation on the laptop's GPU</div></div>
-    <div class="c"><div class="cn">Kokoro</div><div class="cd">Neural text-to-speech, 72 voices</div></div>
-    <div class="c"><div class="cn">Whisper</div><div class="cd">Speech recognition for dictation</div></div>
-  </div>
-
-  <h2>The models</h2>
-  <div class="stack">
-    <div class="s">
-      <div class="t">Reasoning <em>30B Mixture-of-Experts</em></div>
-      <div class="d">The main conversational model. 30 billion parameters in total, but only
-        about 3 billion activate for any given word — which is how a large model stays fast
-        on consumer hardware.</div>
+  <h2>The model</h2>
+  <div class="hero">
+    <div class="who">
+      <div class="nm">Qwen3.8 27B</div>
+      <div class="tag">qwen3.8:27b-mlx · Apple Silicon build</div>
+      <div class="txt">Dense, so every parameter fires on every token. It holds a conversation,
+        writes and reviews code, calls tools, and reads images you paste — a screenshot, a
+        diagram, a table. One model instead of four means no reload when the subject changes.</div>
     </div>
-    <div class="s">
-      <div class="t">Vision <em>7B</em></div>
-      <div class="d">Reads images. Paste a screenshot, a diagram or a table and ask questions
-        about what's in it, rather than describing it yourself.</div>
-    </div>
-    <div class="s">
-      <div class="t">Code <em>14B</em></div>
-      <div class="d">A separate model trained on source code, for writing and reviewing it.
-        Meaningfully better at this than the general model.</div>
-    </div>
-    <div class="s">
-      <div class="t">Images &amp; speech <em>SDXL + neural TTS</em></div>
-      <div class="d">Generates pictures from a text prompt, and reads answers aloud in a
-        natural voice. Both run on the laptop's GPU alongside everything else.</div>
+    <div class="spec">
+      <div><div class="v">27<small>B</small></div><div class="k">parameters</div></div>
+      <div><div class="v">18.2<small>GB</small></div><div class="k">on disk</div></div>
+      <div><div class="v">40<small>k</small></div><div class="k">context</div></div>
     </div>
   </div>
 
-  <h2>Measured on the machine</h2>
-  <div class="nums">
-    <div class="n"><div class="v">51<small>tok/s</small></div><div class="l">Conversation speed — faster than most people read</div></div>
-    <div class="n"><div class="v">8<small>sec</small></div><div class="l">To look at an image and describe it</div></div>
-    <div class="n"><div class="v">42<small>sec</small></div><div class="l">To generate a 1024×1024 image</div></div>
-    <div class="n"><div class="v">1<small>sec</small></div><div class="l">To speak a sentence aloud</div></div>
+  <h2>What runs alongside it</h2>
+  <div class="row">
+    <div class="c b"><div class="cn">SDXL</div><div class="cp">image generation</div>
+      <div class="cd">Makes pictures from a prompt, 1024×1024, on the same GPU. A diffusion
+        model — separate from the one above, which reads images but cannot draw them.</div></div>
+    <div class="c b"><div class="cn">Kokoro + Piper</div><div class="cp">text to speech</div>
+      <div class="cd">Kokoro speaks 8 languages with 72 voices; Piper covers 53 more, each a
+        download on first use. A router picks per reply, by detected language.</div></div>
+    <div class="c b"><div class="cn">faster-whisper</div><div class="cp">speech to text</div>
+      <div class="cd">Dictation into the chat box. Runs locally, so recordings never leave.</div></div>
+    <div class="c b"><div class="cn">nomic-embed-text</div><div class="cp">retrieval</div>
+      <div class="cd">Turns your documents into vectors so they can be searched and quoted.
+        0.3&nbsp;GB — the one job a chat model cannot do.</div></div>
   </div>
+
+  <h2>Measured on this machine</h2>
+  <table>
+    <tr><th style="width:23%">Quantity</th><th style="width:15%">Value</th><th>Why it is the number that matters</th></tr>
+    <tr><td>KV cache cost</td><td class="m">98 KiB/token</td>
+        <td class="d">Measured, not derived. The textbook formula over the model's own
+          architecture gives 34 — wrong by nearly 3×, because the model caches every fourth
+          layer and the runtime adds buffers the formula knows nothing about.</td></tr>
+    <tr><td>Usable context</td><td class="m">40,960</td>
+        <td class="d">What 98 KiB/token buys once the weights are in. Acting on the derived
+          figure would have set a window needing 30 GB on a 24 GB budget.</td></tr>
+    <tr><td>GPU ceiling</td><td class="m">~24 GB</td>
+        <td class="d">Of 32 GB unified memory. Exceed it and inference spills to the CPU while
+          still reporting 100% GPU — throughput collapses with no error.</td></tr>
+    <tr><td>Services</td><td class="m">9</td>
+        <td class="d">All on loopback except the web interface and its HTTPS front door.</td></tr>
+  </table>
 
   <div class="close">
     <p>Every prompt, document, image and recording stays on the machine.
       <b>For regulated data, a physical guarantee is a different thing entirely from a
       contractual one.</b></p>
-    <div class="note">Honest limits: frontier models remain better at long, multi-step reasoning,
-      and the context window is bounded by memory. Web search is the one feature that sends
-      anything outward — and only when asked.</div>
+    <div class="note"><b>Honest limits.</b> Frontier models remain better at long, multi-step
+      reasoning, and the context window is bounded by memory rather than by choice. Web search
+      and page fetch are the only things that reach outward — and only when a question needs
+      them, with the sources shown.</div>
   </div>
 
-  <footer>Open-weight models · consumer Apple Silicon · 32 GB unified memory</footer>
+  <footer>Open weights · consumer Apple Silicon · 32 GB unified memory · nothing leaves the machine unasked</footer>
 
 </div>
 </body>

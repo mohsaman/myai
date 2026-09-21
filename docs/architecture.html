@@ -71,7 +71,7 @@
 </style>
 
 <h1>myai — architecture</h1>
-<p class="sub">Eight services and one model on one machine. Nothing leaves it except a web search the model chooses to make.</p>
+<p class="sub">Nine services and one model on one machine. Nothing leaves it except a web search the model chooses to make.</p>
 <div class="rule"></div>
 
 <div class="band">
@@ -85,7 +85,7 @@
     <div class="card entry">
       <div class="name">goose</div>
       <div class="port">CLI · @g / @goose</div>
-      <div class="desc">Same models as an agent in your shell. Reads files, runs commands, iterates on its own output.</div>
+      <div class="desc">The same model as an agent in your shell. Reads files, runs commands, iterates on its own output.</div>
     </div>
   </div>
 </div>
@@ -98,18 +98,18 @@
     <div class="card engine wide">
       <div class="name">Ollama</div>
       <div class="port">127.0.0.1:11434</div>
-      <div class="desc">Serves every language model below. Each carries its own context window, sized from its architecture. q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
+      <div class="desc">Serves the language models below. Its context window is sized from a measured KV cost, not a derived one. q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
     </div>
     <div class="card engine">
       <div class="name">ComfyUI + SDXL</div>
       <div class="port">127.0.0.1:8188</div>
-      <div class="desc">Image generation on the GPU. 1024×1024, ~45s. No content filter in the pipeline.</div>
+      <div class="desc">Image generation on the GPU, 1024×1024, from the SDXL base checkpoint. A diffusion model — the chat model reads images, this one draws them.</div>
     </div>
   </div>
 </div>
 
 <div class="band">
-  <div class="band-label">Models — 19&nbsp;GB on disk</div>
+  <div class="band-label">Models — 18.5&nbsp;GB on disk</div>
   <table>
     <tr>
       <th style="width:19%">Model</th><th style="width:9%">Size</th>
@@ -121,22 +121,21 @@
       <td class="d">The one you talk to. Dense, so every parameter fires on every token, and the only one here doing vision <i>and</i> tools — so chat, images, code and tool use are all the same model. Apple Silicon build. Its KV cache measures 98 KiB/token, which caps context at 40k — measured, because the architecture implies 34 and that would not have fit.</td>
     </tr>
     <tr>
-      <td><b>qwen2.5:3b</b></td>
-      <td class="mono">1.9 GB</td><td class="mono">3B</td>
-      <td class="d">Background only — titles and tags. Hidden from the picker: small enough to sit beside the main model, so titling never evicts it.</td>
-    </tr>
-    <tr>
       <td><b>nomic-embed-text</b></td>
       <td class="mono">0.3 GB</td><td class="mono">137M</td>
       <td class="d">Embeddings for retrieval. Hidden from the model picker — it is infrastructure, not something to chat with.</td>
     </tr>
   </table>
   <div class="note" style="border-left-color:var(--sky)">
-    <b>One model, not a menu.</b> The picker shows one entry. The other two are never chosen by hand — one
-    titles chats in the background, the other is called by the retrieval pipeline — so both
-    are hidden rather than offered as choices nobody should make. Presets like
-    <i>Telecom Expert</i> are system prompts over the same weights, costing nothing on disk
-    and switching instantly: they change framing and tool access, not capability.
+    <b>One model, not a menu.</b> The picker shows a single entry. Chat, code, vision and tool
+    use are the same weights, so changing subject costs nothing — there is no second model to
+    swap in, and no reload. Background work that used to need a small second model, writing
+    chat titles and tags, now runs on this one too: that removes 1.9&nbsp;GB from memory rather
+    than adding to it, because nothing has to sit resident beside it. The embedding model is the
+    one genuine exception — turning text into vectors is not something a chat model does — so it
+    stays, hidden from the picker as infrastructure. Presets like <i>Telecom Expert</i> are
+    system prompts over the same weights: they change framing and tool access, not capability,
+    and cost nothing on disk.
   </div>
 </div>
 
@@ -200,7 +199,7 @@
     <tr><th style="width:22%">Path</th><th style="width:20%">Reaches</th><th>Notes</th></tr>
     <tr>
       <td>Web search</td><td class="mono">DuckDuckGo</td>
-      <td class="d">Only when a model decides a question needs it. It says so, and Open WebUI shows citations.</td>
+      <td class="d">Only when the model decides a question needs it. It says so, and Open WebUI shows citations.</td>
     </tr>
     <tr>
       <td>fetch tool</td><td class="mono">any URL</td>
@@ -222,14 +221,16 @@
 </div>
 
 <div class="note">
-  <b>The memory budget is the real constraint.</b> 32&nbsp;GB machine, ~24&nbsp;GB usable by the GPU.
-  Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
+  <b>The memory budget is the real constraint.</b> 32&nbsp;GB machine, ~24&nbsp;GB usable by the
+  GPU. Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
   <span class="mono">ollama ps</span> still reports 100% GPU while it happens, so the only
-  symptom is a collapse in throughput. Per-token KV cost is not a function of parameter count, so a single global
-  window is wrong for every model but one. Measured here: 26, 51 and 138&nbsp;KiB per token
-  across three models of similar size — the one advertising 256k gets 32k in practice, while
-  the one advertising 128k gets all of it. <span class="mono">set-context</span> reads
-  <span class="mono">block_count</span>, <span class="mono">head_count_kv</span> and
-  key/value length from each model and bakes the right window in.
+  symptom is a collapse in throughput. The per-token cost cannot be derived reliably:
+  <span class="mono">block_count × head_count_kv × (key_length + value_length)</span> is the
+  textbook formula and it gives 34&nbsp;KiB/token here against a real 98, because this model
+  caches every fourth layer and the runtime adds buffers that scale with context. Acting on the
+  derived figure would have set a window needing 30&nbsp;GB. So
+  <span class="mono">set-context</span> measures instead: it loads the model with a trivial
+  prompt and a large one and divides the change in allocation by the change in tokens, which
+  captures whatever the runtime actually does without needing to know what that is.
 </div>
 </html>
