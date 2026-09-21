@@ -5,6 +5,7 @@
 #   myai stop         stop everything (stays stopped across reboots)
 #   myai restart      stop then start
 #   myai status       show what is running
+#   myai unload       release GPU memory, leave the services up
 #   myai logs [comfy|kokoro|tts|jupyter|mcpo|terminal]
 #   myai backup [dir] archive chats/users/config
 #
@@ -32,7 +33,23 @@ TLS_PORT="${TLS_PORT:-8443}"
 JUPYTER_URL="http://127.0.0.1:8888"
 MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
-OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-60s}"
+# -1 keeps the model resident until something takes it down. That is the right
+# default here because this script owns the lifecycle: "myai stop" unloads it,
+# so nothing is held that a deliberate command did not ask for. The cost is
+# that ollama then holds ~20.8 GB (16.9 weights + 3.8 KV at 40k) of a ~24 GB
+# budget for as long as the stack is up, and ComfyUI needs ~6.5 GB of the same
+# pool to generate an image. Ollama cannot see that, so it will not yield.
+# Use "myai unload" before a batch of image work, or set a timeout here.
+OLLAMA_KEEP_ALIVE="${MYAI_KEEP_ALIVE:--1}"
+# These four are exported with "launchctl setenv", which puts them in the
+# environment of EVERY process in the GUI session -- including the next run of
+# this script. Defaulting them from their own names would therefore read back
+# whatever the last run exported, and editing a default here would silently do
+# nothing: the old value outlives it. Overrides use MYAI_* names instead, which
+# nothing exports, so the defaults below are always the ones that apply.
+#
+#   MYAI_KEEP_ALIVE=5m myai restart      # override for one run
+#
 # Context window. The KV cache for this must fit in GPU memory beside the weights
 # or inference silently spills to the CPU -- and ollama ps still reports 100% GPU
 # while it happens, so the only symptom is a collapse in tokens/sec.
@@ -51,9 +68,9 @@ OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-60s}"
 # see that only every fourth layer is cached, nor the compute buffers the
 # runtime adds. Run scripts/set-context.sh, which measures it by loading the
 # model against a small prompt and a large one and taking the difference.
-OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-40960}"
-OLLAMA_FLASH_ATTENTION="${OLLAMA_FLASH_ATTENTION:-1}"
-OLLAMA_KV_CACHE_TYPE="${OLLAMA_KV_CACHE_TYPE:-q8_0}"
+OLLAMA_CONTEXT_LENGTH="${MYAI_CONTEXT_LENGTH:-40960}"
+OLLAMA_FLASH_ATTENTION="${MYAI_FLASH_ATTENTION:-1}"
+OLLAMA_KV_CACHE_TYPE="${MYAI_KV_CACHE_TYPE:-q8_0}"
 READY_TIMEOUT=120
 STOP_TIMEOUT=30
 
@@ -312,6 +329,26 @@ cmd_status() {
   [ -n "$models" ] && { printf '\n  %smodels%s\n' "$DIM" "$OFF"; echo "$models" | sed 's/^/    /'; }
 }
 
+cmd_unload() {
+  # Release GPU memory without taking the stack down. With OLLAMA_KEEP_ALIVE=-1
+  # a model stays resident until asked to leave, and ComfyUI draws on the same
+  # pool -- so this is what you run before image work, not 'myai stop'.
+  if ! up_ollama; then bad "Ollama not running"; return 1; fi
+  local loaded; loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
+  if [ -z "$loaded" ]; then info "nothing loaded"; return 0; fi
+  echo "$loaded" | while read -r m; do
+    [ -n "$m" ] || continue
+    ollama stop "$m" >/dev/null 2>&1 && ok "unloaded $m" || bad "could not unload $m"
+  done
+  # 'ollama stop' returns before the runner has actually exited; wait for it so a
+  # caller can rely on the memory being free when this command returns.
+  local n=0
+  while [ -n "$(ollama ps 2>/dev/null | tail -n +2)" ] && [ $n -lt 20 ]; do
+    sleep 0.5; n=$((n+1))
+  done
+  ok "GPU memory released"
+}
+
 cmd_logs() {
   case "${1:-}" in
     comfy)  d="$COMFY_LOG_DIR";  u="$SVC_COMFY"  ;;
@@ -534,6 +571,7 @@ case "${1:-}" in
   restart) cmd_stop; echo; cmd_start ;;
   status)  cmd_status ;;
   logs)    cmd_logs "${2:-}" ;;
+  unload)  cmd_unload ;;
   backup)  cmd_backup "${2:-}" ;;
   terminal) shift; cmd_terminal "$@" ;;
   stats)   cmd_stats "${2:-}" ;;
@@ -545,6 +583,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai stop         stop everything (persists across reboots)
   myai restart      stop then start
   myai status       show what is running
+  myai unload       release GPU memory, leave the services up
   myai logs         tail Open WebUI logs
   myai logs comfy   tail ComfyUI logs
   myai logs kokoro  tail Kokoro logs
