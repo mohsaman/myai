@@ -11,7 +11,7 @@ and only when a model decides it needs one — it will tell you when it does.
 ## The first ten minutes
 
 ```bash
-myai start          # brings up all eight services, opens the browser
+myai start          # brings up all nine services, opens the browser
 myai status         # what is running, and on which ports
 ```
 
@@ -181,7 +181,7 @@ This is the feature most worth understanding, because it fixes a failure you wou
 otherwise never catch.
 
 Ask a model for a spec clause and it will produce a confident, plausible, wrong one.
-Asked which EMM cause maps to `DIAMETER_ERROR_USER_UNKNOWN`, a 30B model answered
+Asked which EMM cause maps to `DIAMETER_ERROR_USER_UNKNOWN`, a local model answered
 *"#1, TS 24.301 section 9.9.2.1"*. Both halves were wrong.
 
 So the stack keeps the actual documents:
@@ -226,7 +226,7 @@ The HTML can be interactive: hover states, sortable tables, collapsible sections
 A PNG throws that away, so say which you want. If it is unclear, the interactive version
 is safer — it degrades to a screenshot; a screenshot does not upgrade.
 
-Expect to iterate on layout. A 30B model gets the styling right and the structure
+Expect to iterate on layout. A local model of this size gets the styling right and the structure
 approximately right; telling it to restructure works.
 
 ### Remember things across chats
@@ -355,7 +355,7 @@ saying it lacks access is often wrong.
 This deserves its own section, because the stated reason is frequently not the real
 one, and believing it sends you debugging the wrong layer.
 
-Asked to SSH into a router on the local network, a 30B model answered *"I cannot access
+Asked to SSH into a router on the local network, a local model answered *"I cannot access
 external network devices — I have no network access."* Every part of that was false: it
 had a shell, the machine had a network, and the address was the machine's own default
 gateway. The actual trigger was **the password in the prompt**. The capability claim was

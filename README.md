@@ -6,8 +6,8 @@
 A complete, self-hosted AI setup that runs on a single machine. Nothing is sent to a
 provider. What it can do:
 
-- **Chat and reasoning** — a 30B mixture-of-experts model at conversational speed
-- **Work from the terminal** — `goose`, an agent in your shell driven by the same local models
+- **Chat and reasoning** — one dense 27B model at conversational speed
+- **Work from the terminal** — `goose`, an agent in your shell driven by the same local model
 - **Agentic tool use** — the model decides when to read files, fetch a URL or recall a fact, and chains the calls itself
 - **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
 - **Inspect machines** — a read-only terminal for this computer and any SSH hosts you add: allowlisted commands, no shell, credential paths blocked
@@ -59,8 +59,7 @@ Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
-| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use. Dense, 40k context | 17 tok/s |
-| `qwen2.5:3b` | 1.9 GB | Background tasks — titles, tags | — |
+| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use, and background titling. Dense, 40k context | 17 tok/s |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
 
@@ -71,8 +70,8 @@ Suggested models — swap freely, these are what the defaults assume:
 ### macOS
 
 - **Apple Silicon Mac.** Tested on M5; any M-series works.
-- **32 GB unified memory recommended.** 16 GB works if you drop the 30B model and use a 14B or smaller.
-- **~40 GB free disk** for all models above.
+- **32 GB unified memory recommended.** 16 GB works if you drop the 27B and use a 14B or smaller.
+- **~30 GB free disk** for all models above.
 - **Homebrew.** <https://brew.sh>
 
 > A fanless Mac (Air) throttles under sustained image generation. Chat is unaffected.
@@ -102,8 +101,7 @@ brew services start ollama
 > `-mlx` build is compiled for Apple Silicon and is roughly twice the speed of the generic
 > one on an M-series Mac; on any other platform use `qwen3.8:27b`.
 
-ollama pull qwen3.8:27b-mlx          # chat, images, code, tools
-ollama pull qwen2.5:3b           # background tasks — keep this one small
+ollama pull qwen3.8:27b-mlx      # chat, images, code, tools — and background titling
 ollama pull nomic-embed-text     # embeddings
 ```
 
@@ -249,7 +247,6 @@ Then pull the models — identical to macOS:
 
 ```bash
 ollama pull qwen3.8:27b        # -mlx is Apple Silicon only; this is the portable build
-ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
 
@@ -375,15 +372,26 @@ myai start
 
 These are the settings that matter. The defaults are wrong for a memory-constrained machine.
 
-### Task model — the most important one
+### Task model
 
-Admin → Settings → Interface → **Task Model** → `qwen2.5:3b`
+Admin → Settings → Interface → **Task Model** → `qwen3.8:27b-mlx`
 
-Open WebUI generates chat titles, tags and follow-up suggestions using your *selected chat
-model* by default. That means every message silently fires extra inferences on the 18 GB
-model. On a 32 GB machine this forces everything else into swap.
+Open WebUI generates chat titles, tags and follow-up suggestions in the background. Which
+model does that work is a memory decision, not a quality one, and the right answer depends
+on what is left after the chat model is loaded.
 
-*Measured impact: image generation went from 251s to 84s after this change alone.*
+This stack used to point it at a 1.9 GB `qwen2.5:3b`, so that background work never touched
+the main model. That was right when the main model left room for it. It no longer does. At a
+40k window the 27B needs 16.9 GB of weights plus 3.8 GB of KV cache — 20.8 GB of a ~24 GB
+budget. A second resident model would leave under 1.5 GB for macOS, a browser and the eight
+other services, which is how a machine ends up in swap.
+
+So background work runs on the model that is already loaded. It is slower per title — a 27B
+writing four words takes a second or two — but it happens in the background, and it costs no
+memory at all, because there is nothing to hold resident beside the model you are talking to.
+
+> If you run a smaller chat model and have several spare GB, the old advice is still the
+> better one: a 3B task model keeps background work off the model you are waiting on.
 
 ### Model unload timeout
 
@@ -593,19 +601,30 @@ your own ceiling before raising it:
 KV bytes/token ≈ 2 × layers × kv_heads × head_dim     (1 byte/element at q8_0)
 ```
 
-For a 30B MoE with 48 layers, 4 KV heads and head_dim 128, that is 48 KiB per token —
-so 64k costs 3 GB of cache on top of ~20 GB of weights.
+**Do not trust that formula.** It is the textbook one and it is wrong here by a factor of
+three. For `qwen3.8:27b-mlx` it predicts 34 KiB per token; the measured cost is 98. Two
+things it cannot see: the model reports 65 layers but caches only every fourth one, and the
+runtime allocates compute buffers that themselves scale with context. Sized from the derived
+figure, a 112k window looks affordable — it would have needed 30 GB on a 24 GB machine.
 
-`100% GPU` in `ollama ps` is necessary but not sufficient. On a 32 GB Mac a 30B model
-at 64k wires 21 GB, leaving about 2 GB once macOS, a browser and the rest of the stack
-are accounted for. Inference then allocates temporary buffers on top, macOS starts
-paging, and throughput collapses — measured here from 18 tok/s to 7, with prompt
-evaluation going from 23 s to 160 s for the same 6,300-token prompt. Nothing reports
-an error; `ollama ps` still says `100% GPU`.
+So measure instead of deriving. `scripts/set-context.sh` loads the model twice, once with a
+trivial prompt and once with a large one, and divides the change in allocation by the change
+in prompt tokens. That captures whatever the runtime actually does without needing a model of
+it:
+
+```bash
+./scripts/set-context.sh --dry-run          # measure every model, change nothing
+./scripts/set-context.sh qwen3.8:27b-mlx    # measure one and bake in the window
+```
+
+`100% GPU` in `ollama ps` is necessary but not sufficient. Exceed the budget and inference
+spills to the CPU while still reporting `100% GPU`; nothing reports an error and throughput
+collapses — measured here from 18 tok/s to 7, with prompt evaluation going from 23 s to 160 s
+for the same 6,300-token prompt.
 
 The tell is `sysctl vm.swapusage`. If swap is filling, the window is too large for the
-machine regardless of what fits in the GPU. 32k is the sustainable setting for a 30B
-model on 32 GB; a 20B model has room for far more.
+machine regardless of what fits in the GPU. At 98 KiB/token, 40k is the sustainable setting
+for this model on 32 GB: 16.9 GB of weights plus 3.8 GB of cache, inside a ~24 GB ceiling.
 
 ---
 
@@ -666,7 +685,7 @@ your whole home. The allowlist itself is the `ALLOWED` set at the top of
 
 A system prompt makes a model *sound* expert. It does not make it correct. Asked
 which EMM cause an MME returns when the HSS answers `DIAMETER_ERROR_USER_UNKNOWN`,
-a 30B model with a 3GPP expert skill loaded and a hints file forbidding unverified
+a 30B MoE this stack used previously, with a 3GPP expert skill loaded and a hints file forbidding unverified
 citations answered **"#1, TS 24.301 section 9.9.2.1"**. Both halves were wrong, and
 it said so with complete confidence.
 
@@ -723,7 +742,7 @@ The same pass tells the model to say when it goes online: search or fetch freely
 state what was searched for, give the URL, and mark which parts of the answer came from
 the web. Web search is pre-enabled per model through `meta.defaultFeatureIds`.
 
-Expect to iterate on layout. Asked for a two-vendor comparison, a 30B model produced a
+Expect to iterate on layout. Asked for a two-vendor comparison, a local model of this size produced a
 properly styled dark-theme page and then put both vendors in one column as two rows
 labelled "Cost". Telling it to restructure works; getting it right unprompted is where
 a larger model still shows.

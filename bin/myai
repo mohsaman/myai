@@ -37,22 +37,21 @@ OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-60s}"
 # or inference silently spills to the CPU -- and ollama ps still reports 100% GPU
 # while it happens, so the only symptom is a collapse in tokens/sec.
 #
-# Measured for a 30B MoE (48 layers, 4 KV heads, 128-dim): 51 KiB per token with
-# KV_CACHE_TYPE=q8_0, 96 KiB at f16. Against a 24 GB wired limit on a 32 GB Mac,
-# with ~18.6 GB of Q4_K_M weights:
+# This is only the fallback for models that carry no num_ctx of their own;
+# qwen3.8:27b-mlx has 40960 baked in by scripts/set-context.sh and ignores it.
 #
-#   32k -> 1.7 GB KV, 20.3 GB total     64k -> 3.4 GB, 22.0 GB, ~2 GB spare
-#   48k -> 2.6 GB KV, 21.2 GB total    128k -> 6.8 GB, 25.4 GB, spills
+# Measured for that model at KV_CACHE_TYPE=q8_0: 98 KiB per token. Against a
+# 24 GB wired limit on a 32 GB Mac, with 16.9 GB of weights:
 #
-# 48k is the comfortable default: it leaves room for a browser and ComfyUI.
-# Measured at 48k: 21.1 GB allocated, 100% resident, which matches the table.
+#   32k -> 3.1 GB KV, 20.0 GB total      64k -> 6.1 GB, 23.0 GB, no headroom
+#   40k -> 3.8 GB KV, 20.8 GB total     128k -> 12.3 GB, 29.2 GB, spills
 #
-# Recompute if you change model -- the per-token cost is not a property of
-# parameter count. A dense 27B with 65 layers and 256-dim keys costs 138 KiB per
-# token against this model's 51 KiB, nearly three times as much from a smaller
-# file. Read block_count, head_count_kv, key_length and value_length from
-# /api/show and work it out rather than assuming similar models are similar.
-OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-49152}"
+# Do not derive this number. block_count x head_count_kv x (key_length +
+# value_length) gives 34 KiB/token for this model against a real 98: it cannot
+# see that only every fourth layer is cached, nor the compute buffers the
+# runtime adds. Run scripts/set-context.sh, which measures it by loading the
+# model against a small prompt and a large one and taking the difference.
+OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-40960}"
 OLLAMA_FLASH_ATTENTION="${OLLAMA_FLASH_ATTENTION:-1}"
 OLLAMA_KV_CACHE_TYPE="${OLLAMA_KV_CACHE_TYPE:-q8_0}"
 READY_TIMEOUT=120
