@@ -1,6 +1,6 @@
 """The voice catalogue: which engine speaks a language, and where to get it.
 
-Kokoro sounds better but knows nine languages. Piper knows fifty-three and has
+Kokoro sounds better but knows eight languages. Piper knows fifty-three and has
 one model file per voice, so a new language is a download rather than a new
 release. This module is what turns a detected language code into something that
 can actually be spoken, fetching the model the first time it is needed.
