@@ -62,7 +62,13 @@ OLLAMA_KEEP_ALIVE="${MYAI_KEEP_ALIVE:-60s}"
 # This is only the fallback for models that carry no num_ctx of their own;
 # qwen3.8:27b-mlx has 40960 baked in by scripts/set-context.sh and ignores it.
 #
-# Measured for that model at KV_CACHE_TYPE=q8_0: 98 KiB per token. Against a
+# KV_CACHE_TYPE applies to the GGUF runner, NOT to the -mlx build this stack
+# uses -- MLX manages its own cache and ignores it. Measured on the identical
+# 20,250-token prompt: q8_0 wired 22.3 GB, q4_0 wired 22.1 GB. The expected
+# saving was about a gigabyte; 0.2 GB is noise. Left at q8_0 because the value
+# makes no difference here and q8_0 is the honest label for what GGUF would do.
+#
+# Measured for that model: 98 KiB per token. Against a
 # 24 GB wired limit on a 32 GB Mac, with 16.9 GB of weights:
 #
 #   32k -> 3.1 GB KV, 20.0 GB total      64k -> 6.1 GB, 23.0 GB, no headroom

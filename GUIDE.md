@@ -120,7 +120,7 @@ labels on a diagram come out legible — and supports 2048×2048 natively.
 you SVG or say it cannot, because generating pixels is a diffusion model's job. The image
 icon is the route; the model dropdown lists language models only.
 
-From a shell or from goose, the same model is one command:
+From a shell, the same model is one command:
 
 ```bash
 generate-image "an isometric diagram of a mobile core network" core.png
@@ -210,16 +210,13 @@ model greps them before answering and cites the line:
 #2 (IMSI unknown in HSS) — 3GPP-24.301.txt:4205, clause 9.9.3.9
 ```
 
-In **goose** it goes further: if the document is missing it fetches it itself, then
-greps it.
-
 **Verify anything it expands.** Retrieval fixes invented clause numbers. It does not fix
 a model reading a table badly, and acronym expansion is still unreliable.
 
 ### Make an infographic
 
 Ask for one and you get a rendered HTML page in Open WebUI's Artifacts panel — not ASCII
-art. In goose you get an HTML file plus a PNG.
+art.
 
 You can render any HTML yourself the same way:
 
@@ -244,41 +241,6 @@ approximately right; telling it to restructure works.
 
 Open WebUI's memory is on. Tell it something worth keeping — "I work in Rust, prefer
 explicit error handling, and dislike preamble" — and it persists.
-
-In goose, the `memory` MCP extension does the same but ships disabled: with four
-extensions loaded a 3B-active model starts calling tools that were never advertised.
-Enable it on a larger model.
-
----
-
-## Working from the terminal
-
-`goose` is the same models as an agent in your shell. It reads files, runs commands,
-checks its own output and iterates.
-
-```bash
-cd ~/some-project
-goose                                    # interactive
-goose run -t "summarise the last 5 commits"
-goose session --name lab                 # resumable
-```
-
-It asks before anything with side effects. `GOOSE_MODE=auto` lets it act unattended —
-reasonable in a scratch directory, less so in your home.
-
-**There is no sandbox.** goose reads, writes and runs commands anywhere your account
-can, regardless of where you start it.
-
-Two things shape its behaviour, both worth editing:
-
-| File | Effect |
-|---|---|
-| `~/.config/goose/.goosehints` | loaded into every session — how it works |
-| `./.goosehints` | stacks on top, per project — what this project is |
-| `~/.agents/skills/*/SKILL.md` | conditional expertise it loads when relevant |
-
-A rule that must **always** hold belongs in the hints file. Skills only load when the
-model decides they are relevant, and it does not always decide correctly.
 
 ---
 

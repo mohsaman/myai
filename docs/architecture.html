@@ -83,9 +83,9 @@
       <div class="desc">Chat, file upload, voice, model switching. The only service bound beyond loopback. Voice needs HTTPS off-machine — browsers withhold the microphone from an insecure origin, so a TLS proxy fronts it on 8443.</div>
     </div>
     <div class="card entry">
-      <div class="name">goose</div>
-      <div class="port">CLI · @g / @goose</div>
-      <div class="desc">The same model as an agent in your shell. Reads files, runs commands, iterates on its own output. <span class="mono">render-html</span> and <span class="mono">generate-image</span> on PATH let it produce a real page or a real picture rather than describing one.</div>
+      <div class="name">the shell</div>
+      <div class="port">CLI · on PATH</div>
+      <div class="desc">Any terminal client that speaks the Ollama API reaches the same model. <span class="mono">render-html</span> and <span class="mono">generate-image</span> turn its answers into a real page or a real picture rather than a description of one.</div>
     </div>
   </div>
 </div>
@@ -191,7 +191,7 @@
     <div class="card">
       <div class="name">generate-image</div>
       <div class="port">CLI · → ComfyUI</div>
-      <div class="desc">A raster image from a prompt, for the shell and for goose. The chat model cannot draw; this reaches the one that can.</div>
+      <div class="desc">A raster image from a prompt, for the shell and for any agent with one. The chat model cannot draw; this reaches the one that can.</div>
     </div>
   </div>
 </div>

@@ -32,16 +32,6 @@ install -m 0755 "$HERE/scripts/generate-image.sh" "$BIN/generate-image" && ok "i
 install -m 0755 "$HERE/scripts/set-context.sh" "$BIN/set-context" && ok "installed $BIN/set-context"
 install -m 0755 "$HERE/scripts/setup-tls.sh" "$BIN/setup-tls" && ok "installed $BIN/setup-tls"
 
-# goose recipes: named entry points you run with `goose run --recipe <name>`.
-# Installed rather than symlinked so editing one does not change the repo.
-if [ -d "$HERE/goose/recipes" ]; then
-  mkdir -p "$HOME/.config/goose/recipes"
-  for r in "$HERE"/goose/recipes/*.yaml; do
-    [ -e "$r" ] || continue
-    install -m 0644 "$r" "$HOME/.config/goose/recipes/$(basename "$r")" \
-      && ok "installed recipe $(basename "$r" .yaml)"
-  done
-fi
 case ":$PATH:" in
   *":$BIN:"*) ;;
   *) info "add to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
@@ -185,38 +175,3 @@ else
   fi
 fi
 
-# --- goose: the terminal agent, if it is installed ---------------------------
-if command -v goose >/dev/null 2>&1; then
-  GOOSE_CFG="$HOME/.config/goose/config.yaml"
-  if [ ! -f "$GOOSE_CFG" ] && [ -f "$HERE/goose/config.yaml.example" ]; then
-    mkdir -p "$(dirname "$GOOSE_CFG")"
-    sed "s|__HOME__|$HOME|g" "$HERE/goose/config.yaml.example" > "$GOOSE_CFG"
-    chmod 600 "$GOOSE_CFG"
-    ok "wrote $GOOSE_CFG"
-  else
-    info "goose config already present — left alone"
-  fi
-  # Behavioural instructions for every session. A .goosehints in the working
-  # directory stacks on top of this one.
-  if [ ! -f "$HOME/.config/goose/.goosehints" ] && [ -f "$HERE/goose/goosehints.example" ]; then
-    install -m 0600 "$HERE/goose/goosehints.example" "$HOME/.config/goose/.goosehints"
-    ok "wrote $HOME/.config/goose/.goosehints"
-  fi
-  # goose's own skills root, independent of any other agent's layout.
-  if [ -d "$HERE/goose/skills" ]; then
-    mkdir -p "$HOME/.agents/skills"
-    for s in "$HERE"/goose/skills/*/; do
-      [ -d "$s" ] || continue
-      n="$(basename "$s")"
-      [ -e "$HOME/.agents/skills/$n" ] && { info "skill $n already present — left alone"; continue; }
-      cp -a "$s" "$HOME/.agents/skills/$n" && ok "installed skill $n"
-    done
-  fi
-else
-  info "goose not installed — skip (brew install block-goose-cli)"
-fi
-
-printf '\n'
-ok "done"
-info "next:  myai start      then register the admin account in the browser"
-info "then:  ./scripts/configure.sh"
