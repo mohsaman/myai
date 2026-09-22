@@ -7,8 +7,12 @@
 set -uo pipefail
 
 BASE="${OPENWEBUI_URL:-http://127.0.0.1:8080}"
-TASK_MODEL="${TASK_MODEL:-qwen2.5:3b}"
 CHAT_MODEL="${CHAT_MODEL:-qwen3.8:27b-mlx}"
+# Background titling runs on the chat model by default, not a small second one.
+# A 3B was the right answer while there was memory to spare for it; at a 40k
+# window there is not, and pointing this at a model that is not pulled leaves
+# every new chat titled by a request that fails silently in the background.
+TASK_MODEL="${TASK_MODEL:-$CHAT_MODEL}"
 EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text:latest}"
 TTS_VOICE="${TTS_VOICE:-af_bella}"
 STT_MODEL="${STT_MODEL:-small}"
@@ -160,7 +164,10 @@ import urllib.parse
 # hidden=True keeps a model out of the chat dropdown. The embedding model is only
 # ever called by the retrieval pipeline (which resolves it against Ollama by name,
 # independently of this list), so it is noise in a chat model picker.
-# One model does chat, images, code and tools, so the picker shows one entry.
+# One model does chat, code, tools and image *reading*, so the picker shows one
+# entry. "images" alone reads as "makes images", which is the confusion this
+# label exists to prevent -- generation is a separate diffusion model behind the
+# image icon, not something the chat model can be asked for.
 # The other two are never chosen by hand -- the task model runs titling in the
 # background, the embedding model is called by the retrieval pipeline -- so both
 # are hidden rather than offered as choices nobody should make. De-duplicated by
@@ -168,8 +175,8 @@ import urllib.parse
 seen = set()
 MODELS = []
 for _row in [
-    (os.environ["CHAT_MODEL"],  "Qwen3.8 27B", "chat, images, code, tools",     True,  False, False),
-    (os.environ["TASK_MODEL"],  "Qwen2.5 3B",  "background tasks",              False, False, True),
+    (os.environ["CHAT_MODEL"],  "Qwen3.8 27B", "chat, code, tools, reads images", True,  False, False),
+    (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True),
     (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True),
 ]:
     if _row[0] and _row[0] not in seen:
