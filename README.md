@@ -975,6 +975,70 @@ chats.
 
 ---
 
+## OpenCode — the same stack from your terminal
+
+Open WebUI is a browser. OpenCode is an agent in your shell: it reads files, runs commands,
+edits code and iterates, driven by the same local model. Optional, and nothing else depends
+on it.
+
+```bash
+brew install opencode                      # macOS
+npm install -g opencode-ai                 # Linux, or any platform with node
+```
+
+It does not find Ollama on its own — it needs the provider declared. `install.sh` writes
+this to `~/.config/opencode/opencode.json` if you have none:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1" },
+      "models": {
+        "qwen3.8:27b-mlx": {
+          "name": "Qwen3.8 27B (local)",
+          "tools": true,
+          "limit": { "context": 40960, "output": 8192 }
+        }
+      }
+    }
+  },
+  "model": "ollama/qwen3.8:27b-mlx",
+  "instructions": ["~/.config/opencode/AGENTS.md", "AGENTS.md"]
+}
+```
+
+The `limit.context` must match the window the model actually carries, or OpenCode will send
+prompts the server truncates without telling either of you. `set-context` is what decides
+that number — see [Context length](#context-length).
+
+```bash
+opencode                       # the TUI, in whatever directory you are in
+opencode run "what does this repo do"    # one-shot, no TUI
+opencode models                # confirm the local model is registered
+```
+
+### AGENTS.md — what the agent knows before you say anything
+
+`instructions` points at two files: a global one and a per-project one, stacked. The global
+file is where behaviour lives — verify before asserting, quote a spec rather than recalling
+it, produce a real image rather than describing one. `install.sh` seeds it from
+`opencode/AGENTS.md.example`.
+
+That example is deliberately generic. **Put your own role, stack and domain at the top of the
+installed copy** — that part is what makes the agent useful, and it is also the part nobody
+else can write for you.
+
+> **The interface is not the model.** OpenCode's TUI, slash commands and permission prompts
+> are close to what hosted agents offer. What it copies is the harness, not the reasoning: a
+> 27B local model still invents clause numbers and still needs the evidence discipline in
+> AGENTS.md. Expect the ergonomics, not the instruction-following.
+
+---
+
 ## Security notes
 
 - **Ollama, ComfyUI, Kokoro and the TTS router bind to loopback only.** Only Open WebUI is exposed, and it

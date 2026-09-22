@@ -42,6 +42,25 @@ mkdir -p "$HOME/.open-webui/logs" "$HOME/ComfyUI/logs" "$HOME/kokoro/logs" \
          "$HOME/terminal/logs" "$HOME/piper/logs" "$HOME/piper/voices" \
          "$HOME/ai-workspace" 2>/dev/null
 
+# --- opencode: the terminal agent, if it is installed -------------------------
+if command -v opencode >/dev/null 2>&1; then
+  OC_DIR="$HOME/.config/opencode"
+  mkdir -p "$OC_DIR"
+  if [ ! -f "$OC_DIR/opencode.json" ] && [ -f "$HERE/opencode/opencode.json.example" ]; then
+    install -m 0644 "$HERE/opencode/opencode.json.example" "$OC_DIR/opencode.json" \
+      && ok "wrote $OC_DIR/opencode.json"
+  else
+    info "opencode config already present — left alone"
+  fi
+  # Behavioural instructions for every session. A project AGENTS.md stacks on top.
+  if [ ! -f "$OC_DIR/AGENTS.md" ] && [ -f "$HERE/opencode/AGENTS.md.example" ]; then
+    install -m 0644 "$HERE/opencode/AGENTS.md.example" "$OC_DIR/AGENTS.md" \
+      && ok "wrote $OC_DIR/AGENTS.md — add your own role and domain at the top"
+  fi
+else
+  info "opencode not installed — skip (brew install opencode)"
+fi
+
 # --- per-install secrets: generated once, never committed ---------------------
 secret() {  # secret <file>  — print it, creating it on first use
   local f="$1"
