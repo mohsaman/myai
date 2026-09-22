@@ -242,6 +242,7 @@ sweep_residue() {
 
 # ------------------------------------------------------------- commands -----
 cmd_start() {
+  audit start
   printf '%sStarting local AI stack%s  %s(%s)%s\n' "$BOLD" "$OFF" "$DIM" "$OS" "$OFF"
 
   if svc_installed "$SVC_OLLAMA"; then
@@ -279,7 +280,22 @@ cmd_start() {
   fi
 }
 
+# Start and stop are the two actions whose effect outlives the shell that ran
+# them -- stop disables the agents, so the stack stays down across a reboot until
+# someone deliberately starts it. When that happens unexpectedly there is nothing
+# to consult, so record who did it: the parent process, the tty if any, and when.
+audit() {
+  local log="$HOME/.myai-history.log"
+  local ppid_cmd tty_name
+  ppid_cmd=$(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||')
+  tty_name=$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ')
+  printf '%s  %-8s by=%s tty=%s pid=%s\n' \
+    "$(date '+%Y-%m-%d %H:%M:%S')" "$1" "${ppid_cmd:-?}" "${tty_name:-none}" "$$" \
+    >> "$log" 2>/dev/null
+}
+
 cmd_stop() {
+  audit stop
   printf '%sStopping local AI stack%s\n' "$BOLD" "$OFF"
   svc_installed "$SVC_WEBUI"  && { svc_down "$SVC_WEBUI";  wait_down "Open WebUI" up_webui; }
   svc_installed "$SVC_COMFY"  && { svc_down "$SVC_COMFY";  wait_down "ComfyUI"    up_comfy; }
@@ -471,13 +487,36 @@ cmd_doctor() {
     *M) swap_mb=${swap%M}; swap_mb=${swap_mb%%.*} ;;
     *)  swap_mb=0 ;;
   esac
-  if [ "${swap_mb:-0}" -ge 4096 ]; then
-    bad "swap in use: ${swap:-unknown} — more is being asked of memory than it has"
-    problems=$((problems+1)); note "myai unload, or a smaller context window via set-context.sh"
+  # Swap is a scar, not a symptom: macOS does not hand it back once written, so a
+  # spill from hours ago still reads as gigabytes with the machine completely idle.
+  # Reporting that as a live fault sends people chasing a problem that has already
+  # ended. Only treat it as current if something is actually resident right now.
+  local loaded_now; loaded_now=$(ollama ps 2>/dev/null | tail -n +2)
+  if [ "${swap_mb:-0}" -ge 4096 ] && [ -n "$loaded_now" ]; then
+    bad "swap in use: ${swap:-unknown}, with a model resident — this is live pressure"
+    problems=$((problems+1)); note "myai unload, or a smaller window via set-context.sh"
+  elif [ "${swap_mb:-0}" -ge 4096 ]; then
+    info "swap ${swap} — from earlier, nothing resident now; macOS keeps it until reboot"
   elif [ "${swap_mb:-0}" -ge 1024 ]; then
     info "swap ${swap} — worth watching"
   else
     ok "swap ${swap:-none}"
+  fi
+
+  # The failure this stack actually hits: a window that fits a bare prompt and
+  # blows the budget once an agent fills it with instructions, tools and history.
+  # ollama reports the real figure only while loaded, so check it when we can.
+  if [ -n "$loaded_now" ]; then
+    local sz unit
+    sz=$(echo "$loaded_now" | awk "{print \$3}" | head -1)
+    unit=$(echo "$loaded_now" | awk "{print \$4}" | head -1)
+    if [ "$unit" = "GB" ] && [ "${sz%%.*}" -ge 24 ]; then
+      bad "model resident at ${sz} GB — over the ~24 GB budget; it is spilling to CPU"
+      problems=$((problems+1))
+      note "ollama still says 100% GPU while this happens; lower num_ctx with set-context.sh"
+    else
+      ok "model resident at ${sz} ${unit}, inside budget"
+    fi
   fi
   # Pinning the chat model only works if nothing else wants the memory. An image
   # model does: Qwen-Image-2.1 is 16.1 GB on top of the chat model's ~22 GB.
@@ -536,7 +575,7 @@ cmd_backup() {
   if up_webui; then was_up=1; svc_down "$SVC_WEBUI"; wait_down "Open WebUI" up_webui; fi
 
   local extra=()
-  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.caddy.tls.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist)
+  [ "$OS" = mac ] && extra=(-C "$HOME/Library/LaunchAgents" com.openwebui.server.plist com.comfyui.server.plist com.kokoro.server.plist com.ttsrouter.server.plist com.caddy.tls.plist com.jupyter.server.plist com.mcpo.server.plist com.terminal.server.plist com.myai.guipath.plist)
   [ "$OS" = linux ] && [ -d "$HOME/.config/systemd/user" ] && extra=(-C "$HOME/.config/systemd/user" .)
 
   # --exclude MUST precede the paths it applies to. bsdtar (the macOS default)

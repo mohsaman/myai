@@ -640,6 +640,14 @@ myai restart
 myai status         # health of each service, LAN URL, installed models
 myai doctor         # check the install and say what to fix
 myai unload         # release the model's memory, leave the services running
+```
+
+`start` and `stop` append a line to `~/.myai-history.log` with the time and the parent
+process. Stop disables the launch agents, so its effect outlives the shell that ran it and
+survives a reboot — and when the stack is unexpectedly down, "who stopped it, and when" is
+otherwise unanswerable.
+
+```bash
 myai logs           # tail Open WebUI logs
 myai logs comfy     # tail ComfyUI logs
 myai logs kokoro    # tail Kokoro logs
