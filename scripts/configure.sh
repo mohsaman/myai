@@ -85,7 +85,7 @@ def images():
         "COMFYUI_BASE_URL": "http://127.0.0.1:8188",
         "IMAGE_GENERATION_MODEL": "qwen_image_2.1_int8_convrot.safetensors",
         "IMAGE_SIZE": "1024x1024",
-        "IMAGE_STEPS": 25,
+        "IMAGE_STEPS": 15,
     })
     wf = {
       "1": {"class_type": "UNETLoader",
@@ -105,7 +105,7 @@ def images():
       # single-pass guidance and higher values scorch the output.
       "6": {"class_type": "KSampler",
             "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["4", 1],
-                       "latent_image": ["5", 0], "seed": 0, "steps": 25, "cfg": 1,
+                       "latent_image": ["5", 0], "seed": 0, "steps": 15, "cfg": 1,
                        "sampler_name": "euler", "scheduler": "simple", "denoise": 1}},
       "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["3", 0]}},
       "8": {"class_type": "SaveImage",

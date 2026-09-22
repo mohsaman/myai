@@ -7,7 +7,13 @@
 #
 #   -s <px>     square size, a multiple of 32 (default 1024; 2048 is native)
 #   -n <text>   negative prompt
-#   -t <steps>  sampler steps (default 25)
+#   -t <steps>  sampler steps (default 15)
+#
+# Steps are the only real speed control, and they scale linearly. Measured on
+# an M-series 32 GB Mac at 1024x1024: 10 steps 204s, 25 steps 430s. Quality
+# tracks it -- at 10 the fine detail flattens noticeably. 15 is the default
+# because it is the point where a draft still looks finished; use -t 25 for
+# anything going in front of someone.
 #   -S <seed>   seed (default random, so repeats differ)
 #
 # Writes a PNG and prints its path. The model runs on this machine; nothing about
@@ -21,7 +27,7 @@ set -uo pipefail
 
 COMFY="${COMFY_URL:-http://127.0.0.1:8188}"
 SIZE=1024
-STEPS=25
+STEPS=15
 SEED=""
 NEG=""
 

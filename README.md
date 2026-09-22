@@ -513,6 +513,31 @@ If you need to free the memory immediately rather than waiting out the timeout:
 myai unload        # releases the model, leaves all nine services up
 ```
 
+### Image generation speed
+
+Qwen-Image-2.1 is slow on Apple Silicon, and the cause is worth stating so nobody
+spends an afternoon tuning the wrong thing. Measured at 1024×1024 on a 32 GB M-series:
+
+| Change | Time | Verdict |
+|---|---|---|
+| 25 steps, cold | 430 s | baseline |
+| 25 steps, warm | 643 s | **slower warm than cold** — it is not load-bound |
+| `--gpu-only` (text encoder on GPU, not CPU) | 463 s | no help; reverted |
+| 10 steps | 204 s | near-linear in steps |
+
+Sampling dominates. ComfyUI parks the 8.9 GB text encoder on the CPU by default under
+its `SHARED` vram state, which looks like the culprit and is not — forcing it onto the
+GPU changed nothing measurable.
+
+So steps are the only real control, and they trade directly against quality: at 10 the
+fine detail flattens. The default is **15**, which still looks finished; use 25 for
+anything going in front of someone.
+
+```bash
+generate-image -t 25 "..."      # final
+generate-image -t 10 "..."      # draft
+```
+
 ### Text-to-speech
 
 Admin → Settings → Audio → TTS:
