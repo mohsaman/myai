@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- GUI apps are launched by launchd, not by your shell, so they inherit
+	     /usr/bin:/bin:/usr/sbin:/sbin and nothing else. A desktop agent then cannot
+	     run myai, generate-image, render-html or even ollama, however correct its
+	     own config is. This publishes the PATH into the GUI session at login;
+	     'launchctl setenv' alone does not survive a reboot. -->
+	<key>Label</key>
+	<string>com.myai.guipath</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/launchctl</string>
+		<string>setenv</string>
+		<string>PATH</string>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>

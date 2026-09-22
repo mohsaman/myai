@@ -298,6 +298,34 @@ If the page is older than it looks, say so.
 - Prefer the file tools over shell equivalents for reading and editing: they
   report what actually changed, and `sed -i` does not.
 
+## This machine runs a local AI stack — use its tools
+
+Nine services on loopback, driven by one control script. All of these are on PATH;
+none of them need the internet.
+
+    myai status              what is running, which models are loaded
+    myai doctor              check the install, each failure says how to fix it
+    myai unload              free the model's ~22 GB without stopping anything
+    myai logs [service]      tail a service's log
+    myai start | stop        the whole stack; stop persists across reboots
+
+- **`generate-image "<prompt>" out.png`** — a real raster image, from a local diffusion
+  model. Do not answer "I cannot generate images" and offer SVG. It is slow by nature,
+  about four minutes at the default 12 steps, so from a caller that might time out use
+  `-b` to queue and `-r <id>` to collect: the render outlives the client that asked for it.
+- **`render-html page.html`** — a real PNG from an HTML page. Use this, not
+  `generate-image`, whenever the content is structured or its text must be exact: charts,
+  tables, comparisons, diagrams with labels.
+- **`fetch-specs 23.003`** then grep `~/specs/` — the standards corpus. Never cite a clause
+  you have not grepped.
+- **`set-context <model>`** — measures a model's real KV cost and sizes its window. The
+  derived figure is wrong by about 3x on this hardware; do not compute it.
+
+Memory is the constraint that governs everything here: ~24 GB of GPU on a 32 GB machine,
+a chat model that wants 22 and an image model that wants 16.1. They take turns. If image
+work is slow, check whether the chat model is still resident (`ollama ps`) and run
+`myai unload` rather than assuming the image model is at fault.
+
 ## Editing code
 
 - Read the file before changing it. An edit written from memory of what the file
