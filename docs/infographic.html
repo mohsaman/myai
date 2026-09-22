@@ -84,7 +84,8 @@
       <div class="tag">qwen3.8:27b-mlx · Apple Silicon build</div>
       <div class="txt">Dense, so every parameter fires on every token. It holds a conversation,
         writes and reviews code, calls tools, and reads images you paste — a screenshot, a
-        diagram, a table. One model instead of four means no reload when the subject changes.</div>
+        diagram, a table. One model instead of four means changing subject costs nothing — the
+        reload you pay is for going idle, not for switching topic.</div>
     </div>
     <div class="spec">
       <div><div class="v">27<small>B</small></div><div class="k">parameters</div></div>
@@ -97,8 +98,8 @@
   <div class="row">
     <div class="c b"><div class="cn">Qwen-Image-2.1</div><div class="cp">image generation</div>
       <div class="cd">Makes pictures from a prompt on the same GPU, native 2K, with text inside
-        the image that comes out readable. A diffusion model — separate from the one above,
-        which reads images but cannot draw them.</div></div>
+        the image that comes out readable — and slowly, minutes not seconds. A diffusion model,
+        separate from the one above, which reads images but cannot draw them.</div></div>
     <div class="c b"><div class="cn">Kokoro + Piper</div><div class="cp">text to speech</div>
       <div class="cd">Kokoro speaks 8 languages with 72 voices; Piper covers 53 more, each a
         download on first use. A router picks per reply, by detected language.</div></div>
@@ -123,6 +124,11 @@
         <td class="d">Of 32 GB unified memory. The chat model wants 22 GB and the image model
           16.1 — so they take turns rather than sharing. Exceed it and inference spills to the
           CPU while still reporting 100% GPU, and throughput collapses with no error.</td></tr>
+    <tr><td>Image, 1024²</td><td class="m">234 s</td>
+        <td class="d">At 12 sampler steps; 430 s at 25. Sampling is the entire cost — a warm
+          render measured slower than a cold one, so it is not load time, and moving the text
+          encoder to the GPU changed nothing. Steps are the only control, and they trade
+          against detail.</td></tr>
     <tr><td>Services</td><td class="m">9</td>
         <td class="d">All on loopback except the web interface and its HTTPS front door.</td></tr>
   </table>

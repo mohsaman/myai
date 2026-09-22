@@ -103,7 +103,7 @@
     <div class="card engine">
       <div class="name">ComfyUI + Qwen-Image-2.1</div>
       <div class="port">127.0.0.1:8188</div>
-      <div class="desc">Image generation on the GPU. 16.1&nbsp;GB in three parts — diffusion model, text encoder, VAE — native 2K, and legible text inside the picture. A diffusion model: the chat model reads images, this one draws them. Research licence, non-commercial.</div>
+      <div class="desc">Image generation on the GPU. 16.1&nbsp;GB in three parts — diffusion model, text encoder, VAE — native 2K, and legible text inside the picture. Slow: ~234&nbsp;s at 12 steps, ~430&nbsp;s at 25, and sampling is the whole cost. A diffusion model: the chat model reads images, this one draws them. Research licence, non-commercial.</div>
     </div>
   </div>
 </div>
@@ -129,7 +129,9 @@
   <div class="note" style="border-left-color:var(--sky)">
     <b>One model, not a menu.</b> The picker shows a single entry. Chat, code, vision and tool
     use are the same weights, so changing subject costs nothing — there is no second model to
-    swap in, and no reload. Background work that used to need a small second model, writing
+    swap in, and no reload between subjects — the only reload is after it goes idle, which it
+    must, because the image model needs the same memory. Background work that used to need
+    a small second model, writing
     chat titles and tags, now runs on this one too: that removes 1.9&nbsp;GB from memory rather
     than adding to it, because nothing has to sit resident beside it. The embedding model is the
     one genuine exception — turning text into vectors is not something a chat model does — so it
@@ -191,7 +193,7 @@
     <div class="card">
       <div class="name">generate-image</div>
       <div class="port">CLI · → ComfyUI</div>
-      <div class="desc">A raster image from a prompt, for the shell and for any agent with one. The chat model cannot draw; this reaches the one that can.</div>
+      <div class="desc">A raster image from a prompt, for the shell and for any agent with one. The chat model cannot draw; this reaches the one that can. ComfyUI owns the job, so a render survives a caller that times out: <span class="mono">-b</span> queues and exits, <span class="mono">-r</span> collects it later.</div>
     </div>
   </div>
 </div>

@@ -347,10 +347,10 @@ rounds and feel like nothing changed.
 
 **Keep credentials out of prompts entirely.** Set up SSH keys, then phrase the task with
 no secrets in it. It avoids the refusal, and it keeps passwords out of your shell history
-and the model's context. The `.goosehints` shipped here tells the agent to try before
+and the model's context. The `AGENTS.md` shipped here tells the agent to try before
 claiming it cannot, to never use `sshpass -p`, and to re-evaluate rather than defend an
-earlier refusal — but a hints file is weaker than the model's training, so the habit
-matters more than the instruction.
+earlier refusal — but an instructions file is weaker than the model's training, so the
+habit matters more than the instruction.
 
 **Verify anything it reports from a device.** Summaries mix what the config says with
 what the model inferred from comments. The facts are usually right; the interpretation

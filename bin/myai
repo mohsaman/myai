@@ -342,9 +342,10 @@ cmd_status() {
 
 cmd_unload() {
   note() { printf '      %s%s%s\n' "$DIM" "$1" "$OFF"; }
-  # Release GPU memory without taking the stack down. With OLLAMA_KEEP_ALIVE=-1
-  # a model stays resident until asked to leave, and ComfyUI draws on the same
-  # pool -- so this is what you run before image work, not 'myai stop'.
+  # Release GPU memory without taking the stack down. The 60s timeout usually
+  # does this for you; this is for when you do not want to wait it out, or when
+  # KEEP_ALIVE is pinned to -1. ComfyUI draws on the same pool, so before a
+  # batch of image work this is the command -- not 'myai stop'.
   if ! up_ollama; then bad "Ollama not running"; return 1; fi
   local loaded; loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
   if [ -z "$loaded" ]; then info "nothing loaded"; return 0; fi
