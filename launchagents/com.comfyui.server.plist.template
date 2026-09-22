@@ -23,7 +23,6 @@
 		<string>127.0.0.1</string>
 		<string>--port</string>
 		<string>8188</string>
-		<string>--highvram</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>

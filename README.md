@@ -24,7 +24,7 @@ One command starts everything and opens the browser. One command stops everythin
 residual processes and stays stopped across reboots.
 
 ```
-myai start     myai stop     myai status     myai logs     myai backup
+myai start     myai stop     myai status     myai doctor     myai unload     myai logs     myai backup
 ```
 
 **New here? Read [GUIDE.md](GUIDE.md).** This file covers installing and configuring the
@@ -73,6 +73,8 @@ Suggested models — swap freely, these are what the defaults assume:
 - **32 GB unified memory recommended.** 16 GB works if you drop the 27B and use a 14B or smaller.
 - **~30 GB free disk** for all models above.
 - **Homebrew.** <https://brew.sh>
+- **Node.js** (`brew install node`) — the MCP tool servers are fetched with `npx` on first
+  run. Without it the filesystem, fetch, memory and time tools fail silently at startup.
 
 > A fanless Mac (Air) throttles under sustained image generation. Chat is unaffected.
 
@@ -211,8 +213,12 @@ on first run. `install.sh` writes `~/mcpo/config.json` and generates both auth t
 ./install.sh
 ```
 
-That copies `myai` to `~/.local/bin`, generates the three launch agents from the templates
-with your home directory substituted, and loads them. Make sure `~/.local/bin` is on your PATH.
+That copies `myai` to `~/.local/bin`, generates the eight launch agents from the templates
+with your home directory substituted, and loads them. Ollama is the ninth service and is
+managed through `brew services`, not a launch agent. Make sure `~/.local/bin` is on your PATH.
+
+Anything you skipped is skipped here too, with a line saying so — `install.sh` only installs
+agents whose program actually exists. Run `myai doctor` afterwards to see what landed.
 
 ### 7. Configure Open WebUI
 
@@ -223,6 +229,22 @@ myai start                     # register an admin account in the browser first
 
 Or set them by hand in the UI — the script just automates what's described in
 [Configuration](#configuration).
+
+### 8. Size the context window, then check the install
+
+```bash
+./scripts/set-context.sh       # measure each model's KV cost, bake in a window
+myai doctor                    # verify the whole stack before you rely on it
+```
+
+`set-context` is not optional on a memory-constrained machine and it is not a setting you can
+reason out. It loads each model twice, once with a trivial prompt and once with a large one,
+and divides the change in allocation by the change in tokens. The derived figure is wrong here
+by a factor of three — see [Context length](#context-length) — and a window sized from it asks
+for 30 GB on a 24 GB machine, which fails by getting slow rather than by erroring.
+
+`myai doctor` is the step people skip and then regret: it names anything missing, anything
+running that shouldn't be, and anything installed but never configured.
 
 ---
 
@@ -284,8 +306,7 @@ Verify CUDA is visible — must print `True`:
 ~/ComfyUI/venv/bin/python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-> On macOS the equivalent check is `torch.backends.mps.is_available()`. The service file
-> passes `--highvram` on both platforms.
+> On macOS the equivalent check is `torch.backends.mps.is_available()`.
 
 ### 4. Kokoro (text-to-speech)
 
@@ -351,6 +372,22 @@ myai start
 ./scripts/configure.sh
 ```
 
+### 8. Size the context window, then check the install
+
+```bash
+./scripts/set-context.sh       # measure each model's KV cost, bake in a window
+myai doctor                    # verify the whole stack before you rely on it
+```
+
+`set-context` is not optional on a memory-constrained machine and it is not a setting you can
+reason out. It loads each model twice, once with a trivial prompt and once with a large one,
+and divides the change in allocation by the change in tokens. The derived figure is wrong here
+by a factor of three — see [Context length](#context-length) — and a window sized from it asks
+for 30 GB on a 24 GB machine, which fails by getting slow rather than by erroring.
+
+`myai doctor` is the step people skip and then regret: it names anything missing, anything
+running that shouldn't be, and anything installed but never configured.
+
 ---
 
 ## Platform differences at a glance
@@ -395,27 +432,54 @@ memory at all, because there is nothing to hold resident beside the model you ar
 
 ### Model unload timeout
 
-Models sit in RAM for **5 minutes** after use by default. On a memory-constrained machine
-that is most of your RAM, held for nothing.
+Ollama unloads a model **5 minutes** after use by default. `myai` sets `-1` instead, which
+keeps it resident until something asks it to leave.
 
-**macOS** — `myai start` sets this for you:
+That is the right default *because this script owns the lifecycle*: `myai stop` unloads it,
+so nothing stays in memory that a deliberate command did not ask for, and you never pay the
+20-second reload of an 18 GB model just because you paused to read something. The cost is
+that ~22 GB stays wired while the stack is up — see
+[ComfyUI and the memory budget](#comfyui-and-the-memory-budget), and use `myai unload` to
+release it without stopping anything.
+
+To go back to a timeout:
+
 ```bash
-launchctl setenv OLLAMA_KEEP_ALIVE 60s
-brew services restart ollama
+MYAI_KEEP_ALIVE=60s myai restart
 ```
 
-> Don't put it in Homebrew's plist — `brew services` regenerates that file from its formula
-> on every start and silently drops hand-added keys.
+> **Why `MYAI_` and not `OLLAMA_`.** These are published with `launchctl setenv`, which puts
+> them in the environment of *every* process in the GUI session — including the next run of
+> `myai`. Defaulting them from their own names made the script read back whatever the last
+> run exported, so editing a default in the script did nothing at all: the old value outlived
+> it silently. Overrides therefore use `MYAI_*` names, which nothing exports.
 
-**Linux** — already set in `myai-ollama.service` as `Environment="OLLAMA_KEEP_ALIVE=60s"`.
+> Don't put it in Homebrew's plist either — `brew services` regenerates that file from its
+> formula on every start and silently drops hand-added keys.
+
+**Linux** — set in `myai-ollama.service` as `Environment="OLLAMA_KEEP_ALIVE=-1"`.
 Change it there and `systemctl --user daemon-reload`.
 
-### ComfyUI: keep the model resident
+### ComfyUI and the memory budget
 
-The launch agent passes `--highvram`. Without it ComfyUI reloads 6.5 GB of weights from disk
-on *every* render.
+ComfyUI has a `--highvram` flag that pins the 6.5 GB checkpoint between renders, worth
+*116s → 42s per image*. The launch agent no longer passes it, and the reason is worth
+understanding because it is the central constraint of this stack.
 
-*Measured impact: 116s → 42s per image.*
+Both `--highvram` and `OLLAMA_KEEP_ALIVE=-1` mean *stay resident*, and neither can see the
+other. The language model holds ~22 GB — 16.9 GB of weights plus 3.8 GB of KV cache at a 40k
+window — of a ~24 GB budget. Add a pinned 6.5 GB checkpoint and you are asking for 28.5 GB
+of 24. Nothing errors; inference spills to the CPU and `ollama ps` goes on reporting
+`100% GPU` while everything slows down.
+
+So one tenant is pinned, not two. Before a batch of image work:
+
+```bash
+myai unload        # releases the 22 GB, leaves all nine services up
+```
+
+The model reloads on your next message. If images rather than chat are your main workload,
+invert it: put `--highvram` back in the launch agent and set `MYAI_KEEP_ALIVE=60s`.
 
 ### Text-to-speech
 
@@ -498,6 +562,8 @@ myai start          # start everything, wait until healthy, open the browser
 myai stop           # stop everything, sweep residual processes, stay stopped after reboot
 myai restart
 myai status         # health of each service, LAN URL, installed models
+myai doctor         # check the install and say what to fix
+myai unload         # release the model's memory, leave the services running
 myai logs           # tail Open WebUI logs
 myai logs comfy     # tail ComfyUI logs
 myai logs kokoro    # tail Kokoro logs

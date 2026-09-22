@@ -6,6 +6,7 @@
 #   myai restart      stop then start
 #   myai status       show what is running
 #   myai unload       release GPU memory, leave the services up
+#   myai doctor       check the install and say what to fix
 #   myai logs [comfy|kokoro|tts|jupyter|mcpo|terminal]
 #   myai backup [dir] archive chats/users/config
 #
@@ -349,6 +350,113 @@ cmd_unload() {
   ok "GPU memory released"
 }
 
+cmd_doctor() {
+  # What a correct install looks like, checked rather than described. Every
+  # failure line says what to do about it -- a report you cannot act on is
+  # just a longer way of saying something is wrong.
+  local problems=0
+  note() { printf '      %s%s%s\n' "$DIM" "$1" "$OFF"; }
+
+  printf '%sChecking the install%s  %s(%s)%s\n\n' "$BOLD" "$OFF" "$DIM" "$OS" "$OFF"
+
+  printf '  %sprerequisites%s\n' "$DIM" "$OFF"
+  if command -v ollama >/dev/null 2>&1; then
+    local ov; ov=$(ollama --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    # 0.34 introduced the MLX runner; older builds reject the manifest with a 412.
+    if [ -n "$ov" ] && [ "$(printf '%s\n0.34.0\n' "$ov" | sort -V | head -1)" = "0.34.0" ]; then
+      ok "ollama $ov"
+    else
+      bad "ollama ${ov:-unknown} — 0.34+ needed for the -mlx build"; problems=$((problems+1))
+      note "brew upgrade ollama"
+    fi
+  else
+    bad "ollama not installed"; problems=$((problems+1)); note "brew install ollama"
+  fi
+  for pair in "npx|MCP tool servers|brew install node" \
+              "ffmpeg|non-Kokoro languages|brew install ffmpeg" \
+              "uv|the install steps|brew install uv"; do
+    IFS='|' read -r bin what fix <<<"$pair"
+    if command -v "$bin" >/dev/null 2>&1; then ok "$bin"
+    else bad "$bin missing — $what will fail silently"; problems=$((problems+1)); note "$fix"; fi
+  done
+
+  printf '\n  %sservices%s\n' "$DIM" "$OFF"
+  for row in "$SVC_OLLAMA|Ollama|up_ollama|README step 1" \
+             "$SVC_WEBUI|Open WebUI|up_webui|README step 2" \
+             "$SVC_COMFY|ComfyUI|up_comfy|README step 3" \
+             "$SVC_KOKORO|Kokoro TTS|up_kokoro|README step 4" \
+             "$SVC_TTS|TTS router|up_tts|README step 4" \
+             "$SVC_JUPYTER|Jupyter|up_jupyter|README step 5" \
+             "$SVC_MCPO|MCP tools|up_mcpo|README step 5" \
+             "$SVC_TERMINAL|Terminal|up_terminal|README step 5" \
+             "$SVC_TLS|HTTPS|up_tls|scripts/setup-tls.sh — only needed for voice off-machine"; do
+    IFS='|' read -r svc name fn where <<<"$row"
+    if ! svc_installed "$svc"; then
+      info "$name — not installed"; note "$where"
+    elif "$fn"; then ok "$name"
+    else bad "$name installed but not answering"; problems=$((problems+1)); note "myai logs"; fi
+  done
+
+  printf '\n  %smodels%s\n' "$DIM" "$OFF"
+  if up_ollama; then
+    local names; names=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+    if [ -z "$names" ]; then
+      bad "no models pulled"; problems=$((problems+1)); note "README step 1"
+    else
+      for m in $names; do ok "$m"; done
+      echo "$names" | grep -q 'embed' \
+        || { bad "no embedding model — document retrieval will not work"
+             problems=$((problems+1)); note "ollama pull nomic-embed-text"; }
+      # A window nobody measured is the failure this stack is most prone to.
+      local unsized=0
+      for m in $names; do
+        case "$m" in *embed*) continue ;; esac
+        # /api/show returns "parameters" as a plain text block, not JSON, so
+        # num_ctx appears unquoted -- grepping for it with quotes never matches
+        # and every model looks unsized.
+        curl -fsS --max-time 5 "$OLLAMA_URL/api/show" -d "{\"model\":\"$m\"}" 2>/dev/null \
+          | grep -q 'num_ctx' || unsized=$((unsized+1))
+      done
+      if [ "$unsized" -gt 0 ]; then
+        bad "$unsized model(s) carry no measured context window"; problems=$((problems+1))
+        note "./scripts/set-context.sh"
+      else
+        ok "context windows measured"
+      fi
+    fi
+  else
+    bad "ollama not answering — cannot check models"; problems=$((problems+1))
+  fi
+
+  printf '\n  %smemory%s\n' "$DIM" "$OFF"
+  # macOS reports this in M or G depending on size, so normalise to MB before
+  # comparing -- a threshold that only matches the "G" spelling silently passes
+  # 4686M, which is the very condition it exists to catch.
+  local swap swap_mb
+  swap=$(sysctl -n vm.swapusage 2>/dev/null | grep -oE 'used = [0-9.]+[MG]' | awk '{print $3}')
+  case "$swap" in
+    *G) swap_mb=$(awk -v v="${swap%G}" 'BEGIN{printf "%d", v*1024}') ;;
+    *M) swap_mb=${swap%M}; swap_mb=${swap_mb%%.*} ;;
+    *)  swap_mb=0 ;;
+  esac
+  if [ "${swap_mb:-0}" -ge 4096 ]; then
+    bad "swap in use: ${swap:-unknown} — more is being asked of memory than it has"
+    problems=$((problems+1)); note "myai unload, or a smaller context window via set-context.sh"
+  elif [ "${swap_mb:-0}" -ge 1024 ]; then
+    info "swap ${swap} — worth watching"
+  else
+    ok "swap ${swap:-none}"
+  fi
+  if [ "$OLLAMA_KEEP_ALIVE" = "-1" ] && ps aux | grep -q '[C]omfyUI/main.py.*--highvram'; then
+    bad "OLLAMA_KEEP_ALIVE=-1 and ComfyUI --highvram both pin memory; they do not fit together"
+    problems=$((problems+1)); note "drop --highvram, or set MYAI_KEEP_ALIVE=60s"
+  fi
+
+  printf '\n'
+  if [ "$problems" -eq 0 ]; then ok "no problems found"
+  else bad "$problems problem(s) above"; fi
+}
+
 cmd_logs() {
   case "${1:-}" in
     comfy)  d="$COMFY_LOG_DIR";  u="$SVC_COMFY"  ;;
@@ -572,6 +680,7 @@ case "${1:-}" in
   status)  cmd_status ;;
   logs)    cmd_logs "${2:-}" ;;
   unload)  cmd_unload ;;
+  doctor)  cmd_doctor ;;
   backup)  cmd_backup "${2:-}" ;;
   terminal) shift; cmd_terminal "$@" ;;
   stats)   cmd_stats "${2:-}" ;;
@@ -584,6 +693,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai restart      stop then start
   myai status       show what is running
   myai unload       release GPU memory, leave the services up
+  myai doctor       check the install and say what to fix
   myai logs         tail Open WebUI logs
   myai logs comfy   tail ComfyUI logs
   myai logs kokoro  tail Kokoro logs

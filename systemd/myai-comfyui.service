@@ -5,9 +5,14 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=__HOME__/ComfyUI
-# --highvram keeps the checkpoint resident between renders; without it ComfyUI
-# reloads several GB from disk on every single image.
-ExecStart=__HOME__/ComfyUI/venv/bin/python __HOME__/ComfyUI/main.py --listen 127.0.0.1 --port 8188 --highvram
+# No --highvram. It pins the 6.5 GB checkpoint between renders, which was worth
+# it when ollama released its model after a minute. With OLLAMA_KEEP_ALIVE=-1 the
+# language model holds ~22 GB of a ~24 GB budget for as long as the stack is up,
+# and two pinned tenants do not fit: the result is a spill to CPU that nothing
+# reports. Run 'myai unload' before image work instead -- that frees the 22 GB
+# and costs nothing when you are not generating. Re-add the flag if images, not
+# chat, are the main workload.
+ExecStart=__HOME__/ComfyUI/venv/bin/python __HOME__/ComfyUI/main.py --listen 127.0.0.1 --port 8188
 Restart=on-failure
 RestartSec=5
 
