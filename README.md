@@ -538,6 +538,25 @@ generate-image -t 25 "..."      # final
 generate-image -t 10 "..."      # draft
 ```
 
+**The default is 12 steps (~234 s), chosen against the clock rather than the curve.** A
+300-second tool timeout is a common default for agents that shell out, and 15 steps lands at
+~279 s — inside it, with no margin for a cold model load. 12 has room.
+
+A render is not lost when the caller gives up, because ComfyUI owns the job, not the client.
+So the tool prints its job id before it starts waiting:
+
+```
+queued 3bace56a-… — if this is interrupted: generate-image -r 3bace56a-… out.png
+```
+
+```bash
+generate-image -b "..." out.png    # queue and exit immediately, print the id
+generate-image -r <id> out.png     # collect a finished job, whenever
+```
+
+Use `-b` for anything above about 15 steps from inside an agent: the render happens either
+way, and `-r` picks it up afterwards.
+
 ### Text-to-speech
 
 Admin → Settings → Audio → TTS:
