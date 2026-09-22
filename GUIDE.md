@@ -23,7 +23,7 @@ under a minute.
 | "How much disk is free, and what is using it?" *(switch on **Terminal**)* | it runs real commands and reads the output |
 | "Plot the last 30 days of anything from this CSV" *(attach a file, switch on **Code Interpreter**)* | a real Python kernel, not a sandbox |
 | Paste a screenshot: "what is wrong with this config?" | it reads images — same model, no switching |
-| "Generate an image of a lighthouse at dusk" *(image icon)* | SDXL on the local GPU |
+| "Generate an image of a lighthouse at dusk" *(image icon)* | Qwen-Image-2.1 on the local GPU |
 | "What changed in the latest Ollama release?" | it searches the web and says so |
 | "Present that as an infographic" | a rendered HTML page, not ASCII art |
 
@@ -112,11 +112,22 @@ Apple Silicon build, so faster than the generic one — around 17 tokens/second 
 
 ### Generate images
 
-Click the **image icon** in the chat input. SDXL runs on the local GPU at 1024×1024, 20
-steps, roughly 45 seconds.
+Click the **image icon** in the chat input. Qwen-Image-2.1 runs on the local GPU at
+1024×1024, 25 steps. It handles text inside an image far better than the SDXL it replaced —
+labels on a diagram come out legible — and supports 2048×2048 natively.
 
-It is not in the model dropdown and cannot be — SDXL is a diffusion model in a separate
-process from Ollama. The dropdown lists language models only.
+**Asking the chat model for a picture will not work, and that is not a fault.** It will offer
+you SVG or say it cannot, because generating pixels is a diffusion model's job. The image
+icon is the route; the model dropdown lists language models only.
+
+From a shell or from goose, the same model is one command:
+
+```bash
+generate-image "an isometric diagram of a mobile core network" core.png
+generate-image -s 2048 "a red bicycle against a whitewashed wall"
+```
+
+> Qwen-Image-2.1 is licensed for non-commercial use only. See the note in the README.
 
 ### Speak and listen, in any of 53 languages
 

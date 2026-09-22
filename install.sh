@@ -28,6 +28,7 @@ install -m 0755 "$HERE/bin/myai" "$BIN/myai" && ok "installed $BIN/myai"
 # On PATH so an agent calls it as a command rather than reaching for a web tool.
 install -m 0755 "$HERE/scripts/fetch-specs.sh" "$BIN/fetch-specs" && ok "installed $BIN/fetch-specs"
 install -m 0755 "$HERE/scripts/render-html.sh" "$BIN/render-html" && ok "installed $BIN/render-html"
+install -m 0755 "$HERE/scripts/generate-image.sh" "$BIN/generate-image" && ok "installed $BIN/generate-image"
 install -m 0755 "$HERE/scripts/set-context.sh" "$BIN/set-context" && ok "installed $BIN/set-context"
 install -m 0755 "$HERE/scripts/setup-tls.sh" "$BIN/setup-tls" && ok "installed $BIN/setup-tls"
 

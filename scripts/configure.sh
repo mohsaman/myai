@@ -71,33 +71,58 @@ def tts():
 try_("tts -> local router (per-language), stt -> local whisper (%s)"
      % os.environ["STT_MODEL"], tts)
 
-# 3. Image generation via local ComfyUI.
+# 3. Image generation via local ComfyUI + Qwen-Image-2.1.
+#
+# Unlike SDXL this is not a single checkpoint: the diffusion model, the text
+# encoder and the VAE load separately, so the whole graph is replaced rather
+# than patched. TextEncodeQwenImage21 emits positive AND negative conditioning
+# from one node -- outputs 0 and 1 -- which is why KSampler takes both from it.
 def images():
     c = call("/api/v1/images/config")
     c.update({
         "ENABLE_IMAGE_GENERATION": True,
         "IMAGE_GENERATION_ENGINE": "comfyui",
         "COMFYUI_BASE_URL": "http://127.0.0.1:8188",
-        "IMAGE_GENERATION_MODEL": "sd_xl_base_1.0.safetensors",
+        "IMAGE_GENERATION_MODEL": "qwen_image_2.1_int8_convrot.safetensors",
         "IMAGE_SIZE": "1024x1024",
-        "IMAGE_STEPS": 20,
+        "IMAGE_STEPS": 25,
     })
-    wf = json.loads(c["COMFYUI_WORKFLOW"])
-    wf["4"]["inputs"]["ckpt_name"] = "sd_xl_base_1.0.safetensors"
-    wf["5"]["inputs"].update({"width": 1024, "height": 1024})
-    wf["3"]["inputs"].update({"steps": 20, "sampler_name": "dpmpp_2m", "scheduler": "karras"})
+    wf = {
+      "1": {"class_type": "UNETLoader",
+            "inputs": {"unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+                       "weight_dtype": "default"}},
+      "2": {"class_type": "CLIPLoader",
+            "inputs": {"clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+                       "type": "qwen_image", "device": "default"}},
+      "3": {"class_type": "VAELoader",
+            "inputs": {"vae_name": "qwen_image_2.1_vae_bf16.safetensors"}},
+      "4": {"class_type": "TextEncodeQwenImage21",
+            "inputs": {"clip": ["2", 0], "prompt": "", "negative_prompt": "",
+                       "resolution": 1024}},
+      "5": {"class_type": "EmptyLatentImage",
+            "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+      # cfg 1 is correct for this model, not a placeholder -- it is trained for
+      # single-pass guidance and higher values scorch the output.
+      "6": {"class_type": "KSampler",
+            "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["4", 1],
+                       "latent_image": ["5", 0], "seed": 0, "steps": 25, "cfg": 1,
+                       "sampler_name": "euler", "scheduler": "simple", "denoise": 1}},
+      "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["3", 0]}},
+      "8": {"class_type": "SaveImage",
+            "inputs": {"images": ["7", 0], "filename_prefix": "qwen_image_2.1"}},
+    }
     c["COMFYUI_WORKFLOW"] = json.dumps(wf, indent=2)
     c["COMFYUI_WORKFLOW_NODES"] = [
-        {"type": "model",           "key": "ckpt_name", "node_ids": ["4"]},
-        {"type": "prompt",          "key": "text",      "node_ids": ["6"]},
-        {"type": "negative_prompt", "key": "text",      "node_ids": ["7"]},
-        {"type": "width",           "key": "width",     "node_ids": ["5"]},
-        {"type": "height",          "key": "height",    "node_ids": ["5"]},
-        {"type": "steps",           "key": "steps",     "node_ids": ["3"]},
-        {"type": "seed",            "key": "seed",      "node_ids": ["3"]},
+        {"type": "model",           "key": "unet_name",       "node_ids": ["1"]},
+        {"type": "prompt",          "key": "prompt",          "node_ids": ["4"]},
+        {"type": "negative_prompt", "key": "negative_prompt", "node_ids": ["4"]},
+        {"type": "width",           "key": "width",           "node_ids": ["5"]},
+        {"type": "height",          "key": "height",          "node_ids": ["5"]},
+        {"type": "steps",           "key": "steps",           "node_ids": ["6"]},
+        {"type": "seed",            "key": "seed",            "node_ids": ["6"]},
     ]
     call("/api/v1/images/config/update", c)
-try_("image generation -> local comfyui + sdxl", images)
+try_("image generation -> local comfyui + qwen-image-2.1", images)
 
 # 4. Web search. Bypass embedding: results go straight into the prompt.
 def web():

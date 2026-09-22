@@ -12,7 +12,7 @@ provider. What it can do:
 - **Write and run code** — a real Python kernel with filesystem, shell and network access, not a browser sandbox
 - **Inspect machines** — a read-only terminal for this computer and any SSH hosts you add: allowlisted commands, no shell, credential paths blocked
 - **Read images** — screenshots, diagrams, tables and scanned documents
-- **Generate images** — SDXL on the local GPU
+- **Generate images** — Qwen-Image-2.1 on the local GPU, native 2K with legible text
 - **Speak and listen** — neural text-to-speech in 53 languages, plus dictation
 - **Search the web** — with citations, only when you ask for it
 - **Remember** — a persistent knowledge graph that carries across conversations
@@ -39,7 +39,7 @@ to phrase things, and where the sharp edges are.
 |---|---|
 | **Ollama** | Runs the language models, serves them on a local API |
 | **Open WebUI** | Browser interface — chat, file upload, voice, model switching |
-| **ComfyUI + SDXL** | Image generation on the GPU |
+| **ComfyUI + Qwen-Image-2.1** | Image generation on the GPU |
 | **Kokoro** | Neural text-to-speech, 72 voices, 8 languages, best quality |
 | **Piper** | Text-to-speech for the other 45 languages, one model per voice |
 | **TTS router** | Detects the language of a reply and picks the engine that can say it |
@@ -61,7 +61,7 @@ Suggested models — swap freely, these are what the defaults assume:
 |---|---|---|---|
 | `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use, and background titling. Dense, 40k context | 17 tok/s |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
-| SDXL 1.0 | 6.5 GB | Image generation | 42 s/image |
+| Qwen-Image-2.1 | 16.1 GB | Image generation — 3 files, research licence | — |
 
 ---
 
@@ -81,7 +81,7 @@ Suggested models — swap freely, these are what the defaults assume:
 ### Linux
 
 - **NVIDIA GPU with CUDA** for usable image generation and faster inference. CPU-only works
-  for chat but SDXL becomes impractical.
+  for chat but image generation becomes impractical.
 - **32 GB RAM recommended** (or 16 GB VRAM + 16 GB system).
 - **systemd** with user units — every mainstream distro.
 - Python 3.11 is fetched by `uv`; no system Python is touched.
@@ -124,20 +124,36 @@ uv venv --python 3.11 ~/.open-webui/venv
 VIRTUAL_ENV="$HOME/.open-webui/venv" uv pip install open-webui
 ```
 
-### 3. ComfyUI and SDXL
+### 3. ComfyUI and Qwen-Image-2.1
 
 ```bash
 git clone https://github.com/comfyanonymous/ComfyUI.git ~/ComfyUI
-cd ~/ComfyUI && git checkout v0.36.0        # pin it
-mkdir -p logs models/checkpoints
+cd ~/ComfyUI && git checkout v0.37.0        # pin it — 0.37 is the first with the Qwen 2.1 nodes
+mkdir -p logs models/diffusion_models models/text_encoders models/vae
 
 uv venv --python 3.12 venv
 VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install torch torchvision torchaudio
 VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install -r requirements.txt
 
-curl -L -o models/checkpoints/sd_xl_base_1.0.safetensors \
-  "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+# Three files, not one: the diffusion model, the text encoder and the VAE load
+# separately. 16.1 GB in total.
+B=https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main
+curl -L -o models/diffusion_models/qwen_image_2.1_int8_convrot.safetensors \
+  "$B/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"     # 6.76 GB
+curl -L -o models/text_encoders/qwen3vl_8b_int8_convrot.safetensors \
+  "$B/text_encoders/qwen3vl_8b_int8_convrot.safetensors"            # 8.71 GB
+curl -L -o models/vae/qwen_image_2.1_vae_bf16.safetensors \
+  "$B/vae/qwen_image_2.1_vae_bf16.safetensors"                      # 0.63 GB
 ```
+
+> **Licence.** Qwen-Image-2.1 ships under the Qwen Research License, not Apache — it grants
+> rights *"FOR NON-COMMERCIAL PURPOSES ONLY"*, defined as research or evaluation. Earlier
+> Qwen-Image releases were Apache 2.0; this one is not. Commercial use needs a separate
+> agreement from Qwen. SDXL, which this replaced, was commercially usable under
+> CreativeML OpenRAIL++-M — so this is a real trade, made deliberately for the quality.
+
+> The `int8_convrot` builds are the ones that fit: bf16 is roughly double and will not sit
+> inside a 24 GB budget. Verified working on Apple Silicon via MPS.
 
 Verify Metal is available — this must print `True`:
 
@@ -283,7 +299,7 @@ uv venv --python 3.11 ~/.open-webui/venv
 VIRTUAL_ENV="$HOME/.open-webui/venv" uv pip install open-webui
 ```
 
-### 3. ComfyUI and SDXL
+### 3. ComfyUI and Qwen-Image-2.1
 
 ```bash
 git clone https://github.com/comfyanonymous/ComfyUI.git ~/ComfyUI
@@ -296,8 +312,13 @@ VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install torch torchvision torchaudio \
   --index-url https://download.pytorch.org/whl/cu124
 VIRTUAL_ENV="$HOME/ComfyUI/venv" uv pip install -r requirements.txt
 
-curl -L -o models/checkpoints/sd_xl_base_1.0.safetensors \
-  "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
+B=https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main
+curl -L -o models/diffusion_models/qwen_image_2.1_int8_convrot.safetensors \
+  "$B/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+curl -L -o models/text_encoders/qwen3vl_8b_int8_convrot.safetensors \
+  "$B/text_encoders/qwen3vl_8b_int8_convrot.safetensors"
+curl -L -o models/vae/qwen_image_2.1_vae_bf16.safetensors \
+  "$B/vae/qwen_image_2.1_vae_bf16.safetensors"
 ```
 
 Verify CUDA is visible — must print `True`:
@@ -1246,5 +1267,7 @@ third of the image empty or crops the bottom, and neither is obvious until you l
 ## Licence
 
 MIT for the scripts in this repo. The components it installs carry their own licences —
-Ollama, Open WebUI, ComfyUI, Kokoro and the model weights each have separate terms. SDXL
-ships under CreativeML Open RAIL++-M, which has use restrictions worth reading.
+Ollama, Open WebUI, ComfyUI, Kokoro and the model weights each have separate terms.
+**Qwen-Image-2.1 ships under the Qwen Research License — non-commercial use only.** That is
+stricter than everything else here and stricter than the SDXL it replaced, so read it before
+putting a generated image anywhere commercial.

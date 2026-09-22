@@ -235,6 +235,20 @@ When asked for an infographic, diagram, chart, poster or "make this visual":
 
 3. **Report both paths**, the .html and the .png, and say which to open.
 
+**For a photographic or illustrative image, not a diagram, use `generate-image`** — also on
+your PATH. Do not answer "I cannot generate a raster image" and offer SVG instead; you have a
+diffusion model locally and this calls it:
+
+```bash
+generate-image "a red bicycle against a whitewashed wall" bike.png
+generate-image -s 2048 -n "blurry, watermark" "an isometric server rack"
+```
+
+Use `render-html` when the content is structured -- charts, tables, comparisons, anything
+with text that must be exact. Use `generate-image` when it is a picture. Text inside a
+generated image is legible with this model but never guaranteed, so never use it for a
+diagram whose labels have to be right.
+
 Produce both by default: the HTML is the artifact worth keeping — editable, re-renders
 at any size — and the PNG is what gets pasted into a document or a message.
 
