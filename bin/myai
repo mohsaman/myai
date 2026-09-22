@@ -34,14 +34,18 @@ TLS_PORT="${TLS_PORT:-8443}"
 JUPYTER_URL="http://127.0.0.1:8888"
 MCPO_URL="http://127.0.0.1:8001"
 TERMINAL_URL="http://127.0.0.1:8002"
-# -1 keeps the model resident until something takes it down. That is the right
-# default here because this script owns the lifecycle: "myai stop" unloads it,
-# so nothing is held that a deliberate command did not ask for. The cost is
-# that ollama then holds ~20.8 GB (16.9 weights + 3.8 KV at 40k) of a ~24 GB
-# budget for as long as the stack is up, and ComfyUI needs ~6.5 GB of the same
-# pool to generate an image. Ollama cannot see that, so it will not yield.
-# Use "myai unload" before a batch of image work, or set a timeout here.
-OLLAMA_KEEP_ALIVE="${MYAI_KEEP_ALIVE:--1}"
+# A timeout, not -1, because two tenants want the same memory and only one of
+# them can be pinned. The chat model holds ~22 GB (16.9 weights + 3.8 KV at 40k)
+# and Qwen-Image-2.1 loads 16.1 GB across its diffusion model, text encoder and
+# VAE. That is 38 GB against a ~24 GB budget: they cannot both be resident, and
+# ollama has no idea ComfyUI exists, so it will never yield on its own.
+#
+# 60s makes the machine arbitrate instead of you. Ask for an image after a pause
+# and the chat model has already gone; come back to chat and it reloads, ~20s,
+# which is the cost of a pause you were taking anyway. Pinning with -1 is the
+# other choice and it is defensible when images are rare -- but then every
+# single generation needs "myai unload" first, remembered every time.
+OLLAMA_KEEP_ALIVE="${MYAI_KEEP_ALIVE:-60s}"
 # These four are exported with "launchctl setenv", which puts them in the
 # environment of EVERY process in the GUI session -- including the next run of
 # this script. Defaulting them from their own names would therefore read back
@@ -468,9 +472,25 @@ cmd_doctor() {
   else
     ok "swap ${swap:-none}"
   fi
-  if [ "$OLLAMA_KEEP_ALIVE" = "-1" ] && ps aux | grep -q '[C]omfyUI/main.py.*--highvram'; then
-    bad "OLLAMA_KEEP_ALIVE=-1 and ComfyUI --highvram both pin memory; they do not fit together"
-    problems=$((problems+1)); note "drop --highvram, or set MYAI_KEEP_ALIVE=60s"
+  # Pinning the chat model only works if nothing else wants the memory. An image
+  # model does: Qwen-Image-2.1 is 16.1 GB on top of the chat model's ~22 GB.
+  if [ "$OLLAMA_KEEP_ALIVE" = "-1" ]; then
+    local imgsz=0
+    for d in "$HOME/ComfyUI/models/diffusion_models" "$HOME/ComfyUI/models/text_encoders" \
+             "$HOME/ComfyUI/models/vae" "$HOME/ComfyUI/models/checkpoints"; do
+      [ -d "$d" ] || continue
+      imgsz=$((imgsz + $(find "$d" -name '*.safetensors' -o -name '*.gguf' 2>/dev/null \
+               | xargs stat -f '%z' 2>/dev/null | awk '{s+=$1} END{print int(s/1000000000)}')))
+    done
+    if [ "$imgsz" -ge 5 ]; then
+      bad "OLLAMA_KEEP_ALIVE=-1 pins the chat model, but ${imgsz} GB of image models want the same pool"
+      problems=$((problems+1))
+      note "set MYAI_KEEP_ALIVE=60s so ollama yields, or run 'myai unload' before every image"
+    fi
+    if ps aux | grep -q '[C]omfyUI/main.py.*--highvram'; then
+      bad "ComfyUI --highvram pins the checkpoint too; two pinned tenants do not fit"
+      problems=$((problems+1)); note "drop --highvram from the launch agent"
+    fi
   fi
 
   printf '\n'

@@ -453,21 +453,26 @@ memory at all, because there is nothing to hold resident beside the model you ar
 
 ### Model unload timeout
 
-Ollama unloads a model **5 minutes** after use by default. `myai` sets `-1` instead, which
-keeps it resident until something asks it to leave.
+Ollama unloads a model **5 minutes** after use by default. `myai` sets **60s**.
 
-That is the right default *because this script owns the lifecycle*: `myai stop` unloads it,
-so nothing stays in memory that a deliberate command did not ask for, and you never pay the
-20-second reload of an 18 GB model just because you paused to read something. The cost is
-that ~22 GB stays wired while the stack is up — see
-[ComfyUI and the memory budget](#comfyui-and-the-memory-budget), and use `myai unload` to
-release it without stopping anything.
+The reason is that two tenants want the same memory and only one can be pinned. The chat
+model holds ~22 GB — 16.9 GB of weights plus 3.8 GB of KV cache at a 40k window — and
+Qwen-Image-2.1 loads 16.1 GB across its diffusion model, text encoder and VAE. That is 38 GB
+against a ~24 GB budget. They cannot both be resident, and **ollama has no idea ComfyUI
+exists**, so it will never yield on its own.
 
-To go back to a timeout:
+A 60s timeout makes the machine arbitrate instead of you. Ask for an image after a pause and
+the chat model has already gone; come back to chat and it reloads in about 20 seconds, which
+is the cost of a pause you were taking anyway.
+
+To pin it instead:
 
 ```bash
-MYAI_KEEP_ALIVE=60s myai restart
+MYAI_KEEP_ALIVE=-1 myai restart
 ```
+
+That is defensible when you chat far more than you generate — but then **every** image needs
+`myai unload` first, remembered every time. `myai doctor` will flag the combination.
 
 > **Why `MYAI_` and not `OLLAMA_`.** These are published with `launchctl setenv`, which puts
 > them in the environment of *every* process in the GUI session — including the next run of
@@ -478,29 +483,36 @@ MYAI_KEEP_ALIVE=60s myai restart
 > Don't put it in Homebrew's plist either — `brew services` regenerates that file from its
 > formula on every start and silently drops hand-added keys.
 
-**Linux** — set in `myai-ollama.service` as `Environment="OLLAMA_KEEP_ALIVE=-1"`.
+**Linux** — set in `myai-ollama.service` as `Environment="OLLAMA_KEEP_ALIVE=60s"`.
 Change it there and `systemctl --user daemon-reload`.
 
 ### ComfyUI and the memory budget
 
-ComfyUI has a `--highvram` flag that pins the 6.5 GB checkpoint between renders, worth
-*116s → 42s per image*. The launch agent no longer passes it, and the reason is worth
-understanding because it is the central constraint of this stack.
+This is the central constraint of the stack, so it is worth stating plainly:
 
-Both `--highvram` and `OLLAMA_KEEP_ALIVE=-1` mean *stay resident*, and neither can see the
-other. The language model holds ~22 GB — 16.9 GB of weights plus 3.8 GB of KV cache at a 40k
-window — of a ~24 GB budget. Add a pinned 6.5 GB checkpoint and you are asking for 28.5 GB
-of 24. Nothing errors; inference spills to the CPU and `ollama ps` goes on reporting
-`100% GPU` while everything slows down.
-
-So one tenant is pinned, not two. Before a batch of image work:
-
-```bash
-myai unload        # releases the 22 GB, leaves all nine services up
+```
+chat model  qwen3.8:27b-mlx     16.9 GB weights + 3.8 GB KV  =  22.0 GB
+image model Qwen-Image-2.1      6.8 + 8.7 + 0.6              =  16.1 GB
+                                                      total  =  38.1 GB
+GPU budget on a 32 GB Mac                                    =  ~24 GB
 ```
 
-The model reloads on your next message. If images rather than chat are your main workload,
-invert it: put `--highvram` back in the launch agent and set `MYAI_KEEP_ALIVE=60s`.
+Nothing errors when you exceed it. Inference spills to the CPU and `ollama ps` goes on
+reporting `100% GPU` while throughput collapses.
+
+Two consequences:
+
+- **`OLLAMA_KEEP_ALIVE` is 60s, not `-1`.** Ollama has to be willing to let go, because
+  ComfyUI cannot ask it to.
+- **ComfyUI does not get `--highvram`.** That flag pins the checkpoint between renders, worth
+  *116s → 42s* back when the image model was SDXL's 6.5 GB. At 16.1 GB it is not affordable,
+  and pinning both tenants is not a thing that fits.
+
+If you need to free the memory immediately rather than waiting out the timeout:
+
+```bash
+myai unload        # releases the model, leaves all nine services up
+```
 
 ### Text-to-speech
 

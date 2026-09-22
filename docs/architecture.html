@@ -85,7 +85,7 @@
     <div class="card entry">
       <div class="name">goose</div>
       <div class="port">CLI · @g / @goose</div>
-      <div class="desc">The same model as an agent in your shell. Reads files, runs commands, iterates on its own output.</div>
+      <div class="desc">The same model as an agent in your shell. Reads files, runs commands, iterates on its own output. <span class="mono">render-html</span> and <span class="mono">generate-image</span> on PATH let it produce a real page or a real picture rather than describing one.</div>
     </div>
   </div>
 </div>
@@ -98,7 +98,7 @@
     <div class="card engine wide">
       <div class="name">Ollama</div>
       <div class="port">127.0.0.1:11434</div>
-      <div class="desc">Serves the language models below. Its context window is sized from a measured KV cost, not a derived one. q8_0 KV cache, flash attention. Swapping model costs a reload — 24&nbsp;GB of GPU memory holds one at a time.</div>
+      <div class="desc">Serves the language models below. Its context window is sized from a measured KV cost, not a derived one. q8_0 KV cache, flash attention. Unloads after 60s idle — it has to, because the image model wants the same 24&nbsp;GB and ollama cannot see it.</div>
     </div>
     <div class="card engine">
       <div class="name">ComfyUI + Qwen-Image-2.1</div>
@@ -109,7 +109,7 @@
 </div>
 
 <div class="band">
-  <div class="band-label">Models — 18.5&nbsp;GB on disk</div>
+  <div class="band-label">Language models — 18.5&nbsp;GB (plus 16.1&nbsp;GB of image model)</div>
   <table>
     <tr>
       <th style="width:19%">Model</th><th style="width:9%">Size</th>
@@ -188,6 +188,11 @@
       <div class="port">grep corpus</div>
       <div class="desc">Standards documents fetched on demand, so clauses are quoted rather than recalled.</div>
     </div>
+    <div class="card">
+      <div class="name">generate-image</div>
+      <div class="port">CLI · → ComfyUI</div>
+      <div class="desc">A raster image from a prompt, for the shell and for goose. The chat model cannot draw; this reaches the one that can.</div>
+    </div>
   </div>
 </div>
 
@@ -222,7 +227,9 @@
 
 <div class="note">
   <b>The memory budget is the real constraint.</b> 32&nbsp;GB machine, ~24&nbsp;GB usable by the
-  GPU. Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
+  GPU — and two tenants want it: the chat model at 22&nbsp;GB and the image model at
+  16.1&nbsp;GB, 38&nbsp;GB between them. Neither can see the other, so ollama unloads after
+  60s idle rather than pinning, and ComfyUI does not get <span class="mono">--highvram</span>. Weights plus KV cache must fit inside that or inference silently spills to the CPU — and
   <span class="mono">ollama ps</span> still reports 100% GPU while it happens, so the only
   symptom is a collapse in throughput. The per-token cost cannot be derived reliably:
   <span class="mono">block_count × head_count_kv × (key_length + value_length)</span> is the
