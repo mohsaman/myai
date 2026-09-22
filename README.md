@@ -994,19 +994,51 @@ chats.
 
 ---
 
-## OpenCode — the same stack from your terminal
+## OpenCode — the same stack outside the browser
 
-Open WebUI is a browser. OpenCode is an agent in your shell: it reads files, runs commands,
-edits code and iterates, driven by the same local model. Optional, and nothing else depends
-on it.
+Open WebUI is a browser tab. OpenCode is an agent that reads files, runs commands, edits code
+and iterates, driven by the same local model. It comes two ways, and they share one config.
 
 ```bash
-brew install opencode                      # macOS
-npm install -g opencode-ai                 # Linux, or any platform with node
+npm install -g opencode-ai        # the CLI
 ```
 
-It does not find Ollama on its own — it needs the provider declared. `install.sh` writes
-this to `~/.config/opencode/opencode.json` if you have none:
+> Homebrew also carries it, but the formula lags: at the time of writing brew had 1.18.30
+> against npm's 1.18.32. Pick one — they both install to `/opt/homebrew/bin/opencode` and
+> npm refuses to overwrite brew's copy. If you switch from brew to npm, `brew uninstall
+> opencode` first, and watch what goes with it: it took `ripgrep` out as an unused
+> dependency here.
+
+The **desktop app** is a separate download from opencode.ai and bundles its own copy of the
+same binary. Not sandboxed, same tools — `bash`, `read`, `write`, `edit`, `glob`, `grep`,
+`patch`, `task`, `webfetch` — so it drives the stack exactly as the CLI does. The one
+difference found: the bundled build has no `todowrite`, which changes how it tracks a long
+job, not what it can run.
+
+### The desktop app cannot see your tools until you fix PATH
+
+This is the part that costs an afternoon. A GUI app is launched by launchd, not by your
+shell, so it inherits:
+
+```
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+```
+
+Nothing else. It can reach the model over HTTP and happily answer questions, while being
+unable to run `myai`, `generate-image`, `render-html` or even `ollama` — every one of which
+lives in `~/.local/bin` or `/opt/homebrew/bin`. It does not fail loudly; it just behaves as
+though the tools do not exist.
+
+`install.sh` fixes this on macOS with the `com.myai.guipath` launch agent, which publishes a
+full PATH into the GUI session at login. `launchctl setenv PATH …` does the same for the
+current session but does not survive a reboot.
+
+**Restart the app after installing it** — a running app keeps the PATH it started with.
+
+### Pointing it at the local model
+
+Neither form discovers Ollama on its own. `install.sh` writes this to
+`~/.config/opencode/opencode.json` if you have none, and the app reads the same file:
 
 ```json
 {
@@ -1036,9 +1068,12 @@ that number — see [Context length](#context-length).
 
 ```bash
 opencode                       # the TUI, in whatever directory you are in
-opencode run "what does this repo do"    # one-shot, no TUI
+opencode run "what does this repo do"    # one-shot, no TUI — this is what scripts use
 opencode models                # confirm the local model is registered
 ```
+
+The app is a window; the CLI is a pipe. `opencode run` composes into scripts and cron, which
+is the practical reason to keep both.
 
 ### AGENTS.md — what the agent knows before you say anything
 

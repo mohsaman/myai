@@ -244,6 +244,32 @@ explicit error handling, and dislike preamble" — and it persists.
 
 ---
 
+## Working outside the browser
+
+Open WebUI is one way in. **OpenCode** is the other: the same model as an agent that reads
+your files, runs commands and iterates — in a terminal, or in a desktop window.
+
+```bash
+opencode                                  # a session in the current directory
+opencode run "summarise what changed today"
+```
+
+It is the right tool when the answer depends on your machine rather than on the model's
+knowledge: what is in these files, what is this service doing, what broke. It can run the
+stack's own commands — `myai status`, `myai doctor`, `generate-image`, `fetch-specs` — so
+"is the stack healthy?" is a question it answers by looking, not by guessing.
+
+**If it claims it cannot run something, PATH is the usual reason** — a desktop app launched
+from the Dock starts with four directories and none of them contain these tools. That is what
+the `com.myai.guipath` launch agent fixes, and an app that was already open when it was
+installed needs restarting before it notices.
+
+**It is the same model, so it has the same failure modes.** A familiar interface does not
+make a 27B local model careful: it will still produce a confident clause number it never
+checked. The instructions in `AGENTS.md` push against that — verify before asserting, grep
+the spec before citing it — but the habit of asking "where did that come from?" matters more
+than the file does.
+
 ## Getting better answers
 
 **Pick the right model.** The single biggest lever. See the table above.

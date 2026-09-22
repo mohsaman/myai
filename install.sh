@@ -132,6 +132,9 @@ if [ "$OS" = mac ]; then
       com.terminal.server)  have_terminal|| { info "skip $label (not installed)"; continue; } ;;
       com.ttsrouter.server) have_tts    || { info "skip $label (not installed)"; continue; } ;;
       com.caddy.tls)        have_tls    || { info "skip $label (run setup-tls first)"; continue; } ;;
+      # No program to gate on: this one only publishes PATH into the GUI session,
+      # which is what lets a desktop agent run myai and friends at all.
+      com.myai.guipath)     ;;
     esac
     out="$AGENTS/$label.plist"
     sed -e "s|__HOME__|$HOME|g" -e "s|__BREW__|$BREW_BIN|g" \
