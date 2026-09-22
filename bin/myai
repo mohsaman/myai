@@ -331,6 +331,7 @@ cmd_status() {
 }
 
 cmd_unload() {
+  note() { printf '      %s%s%s\n' "$DIM" "$1" "$OFF"; }
   # Release GPU memory without taking the stack down. With OLLAMA_KEEP_ALIVE=-1
   # a model stays resident until asked to leave, and ComfyUI draws on the same
   # pool -- so this is what you run before image work, not 'myai stop'.
@@ -341,14 +342,34 @@ cmd_unload() {
     [ -n "$m" ] || continue
     ollama stop "$m" >/dev/null 2>&1 && ok "unloaded $m" || bad "could not unload $m"
   done
-  # 'ollama stop' returns before the runner has actually exited; wait for it so a
-  # caller can rely on the memory being free when this command returns.
+  # 'ollama stop' returns immediately; the runner takes time to hand back unified
+  # memory, and an 18 GB MLX model can sit in "Stopping..." for the better part of
+  # a minute. Claiming success early is worse than waiting -- the caller's whole
+  # reason for running this is to know the memory is free.
   local n=0
-  while [ -n "$(ollama ps 2>/dev/null | tail -n +2)" ] && [ $n -lt 20 ]; do
-    sleep 0.5; n=$((n+1))
+  while [ -n "$(ollama ps 2>/dev/null | tail -n +2)" ] && [ $n -lt 120 ]; do
+    sleep 1; n=$((n+1))
   done
-  ok "GPU memory released"
+
+  if [ -z "$(ollama ps 2>/dev/null | tail -n +2)" ]; then
+    ok "GPU memory released"
+    return 0
+  fi
+
+  # Seen in practice: the runner process is gone but ollama still lists the model
+  # as "Stopping...", and the memory stays wired. Report it rather than pretending,
+  # and say what clears it.
+  bad "still unloading after ${n}s"
+  ollama ps 2>/dev/null | tail -n +2 | sed 's/^/      /'
+  if ! pgrep -f 'ollama runner|ollama_llama_server' >/dev/null 2>&1; then
+    note "the runner has exited but ollama has not released it — this is a wedge"
+    note "clear it with:  brew services restart ollama   (macOS)"
+  else
+    note "runner still live; give it longer, or 'myai restart'"
+  fi
+  return 1
 }
+
 
 cmd_doctor() {
   # What a correct install looks like, checked rather than described. Every
