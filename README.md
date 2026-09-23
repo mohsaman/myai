@@ -1121,7 +1121,21 @@ The tunnel is dialled from this machine, which is the point of doing it this way
   dead link within ~45 s; killing the ssh process measured a 3 s recovery.
 
 Expect it to be slower than local use, not because of the tunnel but because OpenCode's
-system prompt is 3–6k tokens a turn; see [Context length](#context-length).
+system prompt is 3–6k tokens a turn; see [Context length](#context-length). Two more
+things decide how it feels:
+
+- **Ollama answers one request at a time** (`OLLAMA_NUM_PARALLEL=1`). A remote session and
+  a local one queue behind each other — a one-line request measured a 160 s wait while
+  another host's agent loop held the model. Run one agent at a time.
+- **Give the remote config the `limit` block.** Without it OpenCode does not know the window
+  is 40,960 tokens, so it lets the conversation grow instead of compacting it, and every
+  turn gets longer to read and hotter to run.
+
+OpenCode 2.x also starts a shared background server (`opencode serve --service`) on first
+use, which keeps running after the TUI closes. `opencode service stop` ends it;
+`opencode --standalone` and `opencode run --standalone` use a private server that exits
+with the session instead. On a machine that only borrows the model, a shell function that
+adds `--standalone` to the TUI and `run` keeps it from coming back.
 
 ### AGENTS.md — what the agent knows before you say anything
 
