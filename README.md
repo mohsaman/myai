@@ -75,7 +75,10 @@ Suggested models — swap freely, these are what the defaults assume:
 - **Node.js** (`brew install node`) — the MCP tool servers are fetched with `npx` on first
   run. Without it the filesystem, fetch, memory and time tools fail silently at startup.
 
-> A fanless Mac (Air) throttles under sustained image generation. Chat is unaffected.
+> A fanless Mac (Air) throttles under sustained load — image generation, and also long
+> agent sessions. Occasional chat is unaffected, but an OpenCode session sending requests
+> back to back for 40 minutes measured prompt processing falling from 193 to ~20 tok/s and
+> generation from 13–15 to 3.4 tok/s. A cool, idle machine recovered the full rate.
 
 ### Linux
 
