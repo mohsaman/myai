@@ -179,7 +179,7 @@ seen = set()
 MODELS = []
 for _row in [
     (os.environ["CHAT_MODEL"],  "myai",        "",                               True,  False, False,
-     "local AI, everything remains on your machine"),
+     "local AI, everything remains on your machine. Uses Qwen3.8-27B"),
     (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True, ""),
     (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True, ""),
 ]:
