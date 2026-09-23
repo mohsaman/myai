@@ -262,7 +262,10 @@ not from the controls. The cost is the per-chat override: to keep a chat offline
 the message. `install.sh` puts the file in `~/.config/myai/`, and `myai start` copies it into
 Open WebUI's `frontend/static/` — not `static/`, which Open WebUI empties and recopies on
 every start — so it also survives a pip upgrade. It also stops the new-chat description from
-popping up a tooltip that only repeats the same text. To bring the controls back, delete
+popping up a tooltip that only repeats the same text. Per-machine rules go in `~/.config/myai/local.css`,
+which `myai start` appends and the repo never contains. Open WebUI's own branding belongs
+there if you change it at all: its licence permits that only for deployments of at most 50
+end users in a rolling 30 days, or with the copyright holder's permission. To bring the controls back, delete
 `~/.config/myai/custom.css` and empty the copy in the package.
 
 ### 8. Size the context window, then check the install

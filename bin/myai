@@ -246,16 +246,26 @@ sweep_residue() {
 # frontend/static/, which Open WebUI copies into static/ on every start -- a
 # copy put in static/ itself is deleted at the next restart -- and a pip upgrade
 # replaces frontend/static/, so it is re-applied here rather than only at install.
+#
+# local.css, if present, is appended: per-machine rules that do not belong in a
+# shared repo. The branding of Open WebUI is one -- its licence permits changing
+# it only for deployments of at most 50 end users in a rolling 30 days (or with
+# the copyright holder's permission), which a single machine can be and a public
+# repository cannot promise, so such rules live here and never in ui/custom.css.
 UI_CSS_SRC="${MYAI_UI_CSS:-$HOME/.config/myai/custom.css}"
+UI_CSS_LOCAL="${MYAI_UI_CSS_LOCAL:-$HOME/.config/myai/local.css}"
 apply_ui_css() {
-  [ -f "$UI_CSS_SRC" ] || return 0
+  [ -f "$UI_CSS_SRC" ] || [ -f "$UI_CSS_LOCAL" ] || return 0
   local pkg; pkg=$("$HOME/.open-webui/venv/bin/python" -c \
     'import open_webui,os;print(os.path.dirname(open_webui.__file__))' 2>/dev/null) || return 0
+  local built; built=$(mktemp)
+  cat "$UI_CSS_SRC" "$UI_CSS_LOCAL" 2>/dev/null > "$built"
   local d
   for d in "$pkg/frontend/static" "$pkg/static"; do
     [ -d "$d" ] || continue
-    cmp -s "$UI_CSS_SRC" "$d/custom.css" || cp "$UI_CSS_SRC" "$d/custom.css"
+    cmp -s "$built" "$d/custom.css" || cp "$built" "$d/custom.css"
   done
+  rm -f "$built"
 }
 
 cmd_start() {
