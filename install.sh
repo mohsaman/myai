@@ -57,6 +57,17 @@ if command -v opencode >/dev/null 2>&1; then
     install -m 0644 "$HERE/opencode/AGENTS.md.example" "$OC_DIR/AGENTS.md" \
       && ok "wrote $OC_DIR/AGENTS.md — add your own role and domain at the top"
   fi
+  # TUI plugins (OpenCode 2.x): each is a directory with a tui entry, loaded from
+  # plugins/<name>/ on start. Ours and versioned with the repo, so refreshed on
+  # every run. OpenCode 1.x only loads plugins/*.js files and ignores these.
+  if [ -d "$HERE/opencode/plugins" ]; then
+    for d in "$HERE"/opencode/plugins/*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      mkdir -p "$OC_DIR/plugins/$name"
+      cp -R "$d". "$OC_DIR/plugins/$name/" && ok "installed opencode plugin $name"
+    done
+  fi
 else
   info "opencode not installed — skip (brew install opencode)"
 fi

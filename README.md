@@ -1228,6 +1228,40 @@ use, which keeps running after the TUI closes. `opencode service stop` ends it;
 with the session instead. On a machine that only borrows the model, a shell function that
 adds `--standalone` to the TUI and `run` keeps it from coming back.
 
+### A suggested next step after every reply
+
+`opencode/plugins/next-step/` is an OpenCode **2.x TUI plugin** (installed to
+`~/.config/opencode/plugins/next-step/`). When a run finishes, it asks the session's own model
+for one next message and shows it in muted text just above the prompt:
+
+```
+  › What do the common ls flags like -a, -l, and -t do?                 alt+n send
+```
+
+**alt+n** sends it (so do `/next` and the command palette); starting anything else clears it.
+
+It is built only on the documented plugin API in the OpenCode source (`packages/plugin/src/tui`)
+and follows two built-in plugins: `/btw` for the generation, `notifications` for the events.
+
+- **It does not touch the conversation.** The suggestion comes from `session.generate`, the
+  same one-shot call `/btw` uses: it reads the session's context and adds nothing to it.
+  Measured: context tokens were identical before and after a suggestion.
+- **Accepting sends; it cannot fill the box.** The 2.x TUI plugin API has no way to read or
+  set the composer text. A key that sends must not be one pressed while typing, so it is
+  alt+n, not Tab — unbound in OpenCode's defaults and not a text-editing key.
+- **It always proposes something.** An opt-out ("reply NONE if nothing follows") was taken
+  by the model even after a one-line answer, so the instructions ask for one every time.
+- **Cost:** one extra request after each reply — ~15 s on this machine, and on a server
+  that answers one request at a time it queues ahead of your next message.
+- **Where it runs:** the OpenCode 2.x terminal UI, including on a remote machine using the
+  host's model through `myai share`. Not the desktop app, which is not the TUI, and not
+  OpenCode 1.x, whose plugin format differs.
+- **Off:** `MYAI_NEXT_STEP=0`. **Diagnose:** `MYAI_NEXT_STEP_DEBUG=1` logs each decision to
+  `~/.local/state/opencode/next-step.log`.
+
+Open WebUI has the equivalent built in: follow-up generation shows the first suggested
+follow-up as grey text in the empty message box, and Tab accepts it.
+
 ### AGENTS.md — what the agent knows before you say anything
 
 `instructions` points at two files: a global one and a per-project one, stacked. The global
