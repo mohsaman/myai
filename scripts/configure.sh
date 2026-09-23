@@ -179,7 +179,7 @@ seen = set()
 MODELS = []
 for _row in [
     (os.environ["CHAT_MODEL"],  "myai",        "",                               True,  False, False,
-     "local AI, everything remains on your machine. Uses Qwen3.8-27B"),
+     "Local AI, everything remains on your machine. Uses Qwen3.8-27B"),
     (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True, ""),
     (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True, ""),
 ]:
@@ -264,23 +264,55 @@ Infographics, diagrams and anything visual:
 - Put the actual content in it. Numbers and specifics are what make an infographic worth looking at.
 - Do not explain the HTML afterwards."""
 
+# Features the model may use without being asked. Under native function calling
+# (the default -- only params.function_calling == "legacy" changes it) a feature
+# that is "on" is not forced: it is OFFERED to the model as a tool, and the model
+# decides per message whether to call it. That is how a desktop agent behaves,
+# and it is what the per-chat toggles otherwise make the user do by hand.
+AUTO_FEATURES = ["web_search", "image_generation", "code_interpreter"]
+
+def attachable_tools():
+    """Every enabled tool server and terminal, as the ids a model can carry.
+
+    Server tools are "server:<info.id>" (falling back to the index, as Open WebUI
+    does); the terminal is a separate slot, meta.terminalId. Read from the live
+    config so a server added later is attached on the next run.
+    """
+    servers = (call("/api/v1/configs/tool_servers") or {}).get("TOOL_SERVER_CONNECTIONS") or []
+    tool_ids = []
+    for i, c in enumerate(servers):
+        if (c.get("config") or {}).get("enable", True):
+            sid = (c.get("info") or {}).get("id") or str(i)
+            tool_ids.append(f"server:{sid}")
+    terminals = (call("/api/v1/configs/terminal_servers") or {}).get("TERMINAL_SERVER_CONNECTIONS") or []
+    terminal = next((t.get("id") for t in terminals if t.get("enabled", True) and t.get("id")), None)
+    return tool_ids, terminal
+
 def behaviour(model_id):
     enc = urllib.parse.quote(model_id, safe="")
     cur = call(f"/api/v1/models/model?id={enc}")
     params = dict(cur.get("params") or {})
-    if "Infographics, diagrams" in params.get("system", ""):
-        return
-    params["system"] = (params.get("system", "") + "\n\n" + PREAMBLE).strip()
+    if "Infographics, diagrams" not in params.get("system", ""):
+        params["system"] = (params.get("system", "") + "\n\n" + PREAMBLE).strip()
+    params["function_calling"] = "native"
     meta = dict(cur.get("meta") or {})
-    # Pre-enable web search for new chats with this model.
-    meta["defaultFeatureIds"] = sorted(set((meta.get("defaultFeatureIds") or []) + ["web_search"]))
-    caps = dict(meta.get("capabilities") or {}); caps["web_search"] = True
+    meta["defaultFeatureIds"] = sorted(set((meta.get("defaultFeatureIds") or []) + AUTO_FEATURES))
+    caps = dict(meta.get("capabilities") or {})
+    caps.update({f: True for f in AUTO_FEATURES}, builtin_tools=True)
     meta["capabilities"] = caps
+    try:
+        tool_ids, terminal = attachable_tools()
+    except urllib.error.HTTPError:
+        tool_ids, terminal = [], None   # older Open WebUI: leave tools to the user
+    if tool_ids:
+        meta["toolIds"] = sorted(set((meta.get("toolIds") or []) + tool_ids))
+    if terminal:
+        meta["terminalId"] = terminal
     call(f"/api/v1/models/model/update?id={enc}",
          {"id": model_id, "name": cur["name"], "base_model_id": cur.get("base_model_id"),
           "params": params, "meta": meta})
 
-try_(f"web + visual behaviour -> {os.environ['CHAT_MODEL']}",
+try_(f"tools on by default, model decides + visual behaviour -> {os.environ['CHAT_MODEL']}",
      lambda: behaviour(os.environ["CHAT_MODEL"]))
 try_("prune entries whose model is gone", prune)
 
