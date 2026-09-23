@@ -295,6 +295,11 @@ spec" reliably changes behaviour, because the tools are there and the instructio
 wrong" or "what would have to be true for this to be a bad idea" produces far better
 output than an open question.
 
+**Take the suggested next step with Tab.** A few seconds after a reply, the model's first
+suggested follow-up appears as grey text in the empty message box. Tab accepts it, typing
+replaces it. It arrives a moment after the reply because it is a second request to the same
+model, and the machine answers one request at a time.
+
 **Critique in a second turn.** Small models are much better at finding flaws in text
 than at avoiding them while generating. "Now argue against that" is cheap and effective.
 
