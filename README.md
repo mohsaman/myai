@@ -673,6 +673,52 @@ own description is not.
 
 ---
 
+## Using it from other machines
+
+Everything runs on one machine — call it the host. Other machines can use it two ways, and
+neither exposes the model server itself: Ollama stays bound to the host's loopback.
+
+| From another machine | What travels | What runs where | Set up with |
+|---|---|---|---|
+| **Open WebUI in a browser** | HTTPS to the host's Open WebUI | everything on the host — model, tools, code, files | `scripts/setup-tls.sh` on the host; trust its CA on the client |
+| **OpenCode (or any OpenAI-compatible client)** | model requests only, over SSH | model on the host; the agent's shell and file edits on the *client* | `myai share add` on the host; a config on the client |
+
+### Open WebUI from a browser elsewhere
+
+1. **On the host:** `./scripts/setup-tls.sh` issues a certificate for every current address
+   plus `<hostname>.local`; add addresses of networks the host is not on right now as
+   arguments. Caddy serves it on `:8443`. Plain `http://<host>:8080` also works for chat,
+   but browsers withhold the microphone from it — see
+   [Voice and dictation need HTTPS off-machine](#voice-and-dictation-need-https-off-machine).
+2. **On each client:** trust the host's CA — macOS keychain, Windows `certutil`, iOS
+   profile, and on Linux the per-user NSS database, which Chrome reads instead of the
+   system store. The steps are in the same section. mkcert is only needed on the host.
+3. **Use** `https://<hostname>.local:8443`, which survives the host changing address, or
+   any address the certificate covers.
+
+Tools, code and files all act on the **host**, because that is where Open WebUI runs.
+
+### OpenCode on another machine
+
+1. **On the host:** `myai share add <name> <user@client>` — a reverse SSH tunnel that puts
+   the host's Ollama on the client's `127.0.0.1:11434`. The host dials out, so nothing new
+   listens on the host. Needs key auth from host to client without a passphrase prompt.
+2. **On the client, once:** `ClientAliveInterval 15` in its sshd, or the tunnel cannot come
+   back for hours after the host sleeps. `myai share add` / `test` check for it and print
+   the two commands.
+3. **On the client:** the OpenCode config from
+   [Pointing it at the local model](#pointing-it-at-the-local-model), unchanged — including
+   the `limit` block, without which long sessions never compact.
+4. **Run** `opencode --standalone` / `opencode run --standalone`, or OpenCode 2.x leaves a
+   shared background server running after you exit.
+
+The model answers from the host; **the agent's shell commands and file edits happen on the
+client**, where OpenCode runs. Details, measurements and failure modes:
+[From another machine — model here, shell there](#from-another-machine--model-here-shell-there).
+
+Either way, the host serves **one request at a time**: a remote agent and a local chat
+queue behind each other, and a fanless host slows under a long agent session.
+
 ## Usage
 
 ```bash

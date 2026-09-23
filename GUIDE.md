@@ -272,6 +272,12 @@ from the Dock starts with four directories and none of them contain these tools.
 the `com.myai.guipath` launch agent fixes, and an app that was already open when it was
 installed needs restarting before it notices.
 
+**From another machine, too.** A browser elsewhere can use Open WebUI over HTTPS once it
+trusts the host's certificate, and everything still runs on the host. OpenCode elsewhere
+can borrow the host's model through `myai share` while its own shell runs where it is — the
+host thinks, the other machine acts. Setup for both is in the README under *Using it from
+other machines*.
+
 **It is the same model, so it has the same failure modes.** A familiar interface does not
 make a 27B local model careful: it will still produce a confident clause number it never
 checked. The instructions in `AGENTS.md` push against that — verify before asserting, grep
