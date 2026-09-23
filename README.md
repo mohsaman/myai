@@ -625,6 +625,20 @@ Other devices must trust the CA at `~/Library/Application Support/mkcert/rootCA.
 before the microphone works there. On iOS that means installing it as a profile and then
 enabling it under **General → About → Certificate Trust Settings**.
 
+On Linux, Chrome and Chromium do not read the system trust store; they read the per-user NSS
+database, so `update-ca-certificates` alone changes nothing for them. mkcert itself is not
+needed on the client — only the CA's public certificate is:
+
+```bash
+scp ~/Library/Application\ Support/mkcert/rootCA.pem user@linux-host:/tmp/   # never rootCA-key.pem
+sudo apt install libnss3-tools                                               # provides certutil
+certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n "myai local CA" -i /tmp/rootCA.pem
+```
+
+Then restart Chrome. Check with a load against an empty store as a control: without the CA
+the page is Chrome's *Privacy error*, with it the page loads. A snap-packaged Chromium keeps
+its own database under `~/snap/chromium/current/.pki/nssdb` instead.
+
 ### Speech-to-text
 
 Engine: leave **empty** (local faster-whisper). Set Whisper Model to `small` — the `base`
