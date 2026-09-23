@@ -261,7 +261,8 @@ changes nothing functional, because each chat's features are set from the model'
 not from the controls. The cost is the per-chat override: to keep a chat offline, say so in
 the message. `install.sh` puts the file in `~/.config/myai/`, and `myai start` copies it into
 Open WebUI's `frontend/static/` — not `static/`, which Open WebUI empties and recopies on
-every start — so it also survives a pip upgrade. To bring the controls back, delete
+every start — so it also survives a pip upgrade. It also stops the new-chat description from
+popping up a tooltip that only repeats the same text. To bring the controls back, delete
 `~/.config/myai/custom.css` and empty the copy in the package.
 
 ### 8. Size the context window, then check the install

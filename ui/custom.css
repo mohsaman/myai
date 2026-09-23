@@ -29,3 +29,14 @@
 #message-input-container div:has(+ div.overflow-x-auto #integration-menu-button) {
   display: none !important;
 }
+
+/*
+ * New-chat page: the model description, without its hover caption.
+ * The description sits inside a Tooltip whose content is the same text again,
+ * so hovering it only repeats what is already on screen. The tooltip listens on
+ * its wrapper (a w-fit div), so the wrapper -- not just the text -- has to stop
+ * taking pointer events; the text inside stays visible and wraps to two lines.
+ */
+div.w-fit:has(> div.line-clamp-2.max-w-xl.markdown) {
+  pointer-events: none;
+}
