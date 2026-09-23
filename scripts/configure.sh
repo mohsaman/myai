@@ -160,7 +160,10 @@ try_("embeddings -> " + os.environ["EMBED_MODEL"], embed)
 #    models stop erroring. Only the chat and vision models need it.
 import urllib.parse
 
-# id, display name, use shown in parentheses, vision, legacy function calling, hidden
+# id, display name, use shown in parentheses, vision, legacy function calling,
+# hidden, description. The chat model is the one people see on every new chat --
+# its name is the heading there and its description the line under it -- so it
+# carries the product name rather than the model's, with no parenthesised use.
 # hidden=True keeps a model out of the chat dropdown. The embedding model is only
 # ever called by the retrieval pipeline (which resolves it against Ollama by name,
 # independently of this list), so it is noise in a chat model picker.
@@ -175,9 +178,10 @@ import urllib.parse
 seen = set()
 MODELS = []
 for _row in [
-    (os.environ["CHAT_MODEL"],  "Qwen3.8 27B", "chat, code, tools, reads images", True,  False, False),
-    (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True),
-    (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True),
+    (os.environ["CHAT_MODEL"],  "myai",        "",                               True,  False, False,
+     "local AI, everything remains on your machine"),
+    (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True, ""),
+    (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True, ""),
 ]:
     if _row[0] and _row[0] not in seen:
         seen.add(_row[0])
@@ -209,12 +213,17 @@ def prune():
             call("/api/v1/models/model/delete?id=" + enc, {})
             print("  dropped %s (no longer in ollama)" % mid)
 
-def setup(model_id, label, suffix, vision, legacy, hidden):
+def setup(model_id, label, suffix, vision, legacy, hidden, description):
+    meta = {"capabilities": {"vision": vision, "citations": True}}
+    # update replaces meta wholesale, so a description set only in the UI is
+    # wiped by the next run; carrying it here is what makes it survive.
+    if description:
+        meta["description"] = description
     payload = {
         "id": model_id,
-        "name": f"{label} ({suffix})",
+        "name": f"{label} ({suffix})" if suffix else label,
         "base_model_id": None,
-        "meta": {"capabilities": {"vision": vision, "citations": True}},
+        "meta": meta,
         "params": {"function_calling": "legacy"} if legacy else {},
     }
     try:
@@ -232,9 +241,9 @@ def setup(model_id, label, suffix, vision, legacy, hidden):
         if call(f"/api/v1/models/model?id={enc}").get("is_active"):
             call(f"/api/v1/models/model/toggle?id={enc}", {})
 
-for mid, label, suffix, vis, leg, hid in MODELS:
-    try_(f"{mid} -> {label} ({suffix})" + ("  [hidden]" if hid else ""),
-         lambda a=mid, b=label, c=suffix, d=vis, e=leg, f=hid: setup(a, b, c, d, e, f))
+for mid, label, suffix, vis, leg, hid, desc in MODELS:
+    try_(f"{mid} -> {label}" + (f" ({suffix})" if suffix else "") + ("  [hidden]" if hid else ""),
+         lambda a=mid, b=label, c=suffix, d=vis, e=leg, f=hid, g=desc: setup(a, b, c, d, e, f, g))
 
 # 7. Behaviour the models do not have by default.
 #

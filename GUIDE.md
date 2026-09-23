@@ -105,7 +105,7 @@ terminal, this is **not** restricted — Python there can do anything your accou
 
 ### Look at images
 
-Pick **Qwen3.8 27B** and paste or attach. Screenshots, diagrams, tables, scanned
+Pick **myai** (Qwen3.8 27B) and paste or attach. Screenshots, diagrams, tables, scanned
 documents, error dialogs. It is the only model here that does vision *and* tool calling, so
 you no longer have to switch model to read an image with an integration toggle on. Being a
 Apple Silicon build, so faster than the generic one — around 17 tokens/second warm.
