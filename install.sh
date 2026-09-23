@@ -85,6 +85,13 @@ done
 # uvicorn imports by module name, which cannot contain a hyphen.
 [ -f "$HOME/terminal/server-ssh.py" ] && ln -sf server-ssh.py "$HOME/terminal/server_ssh.py"
 
+# minimal message box: the source lives in ~/.config/myai; myai start copies it
+# into Open WebUI's package on every start, so it survives pip upgrades
+if [ -f "$HERE/ui/custom.css" ]; then
+  mkdir -p "$HOME/.config/myai"
+  install -m 0644 "$HERE/ui/custom.css" "$HOME/.config/myai/custom.css" && ok "installed ui/custom.css"
+fi
+
 # the TTS router's code lives in the repo; install it next to Piper's venv
 for f in router.py voices.py; do
   [ -f "$HERE/tts/$f" ] || continue

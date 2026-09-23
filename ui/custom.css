@@ -1,0 +1,31 @@
+/*
+ * myai: a minimal message box.
+ *
+ * Hides the row of per-chat tool controls -- the Integrations menu, the web
+ * search / image / code interpreter chips, the tool counter, the terminal
+ * picker and model valves. Nothing is switched off by hiding them: each chat's
+ * feature state is initialised from the model's defaultFeatureIds, not from
+ * the controls, and under native function calling an enabled feature is only
+ * OFFERED to the model, which decides per message whether to use it.
+ * configure.sh sets those defaults.
+ *
+ * Kept: the + menu (files, images, screen capture, web pages), paste and drag,
+ * the microphone, voice mode and send.
+ *
+ * Anchored on #integration-menu-button, the one stable id in that row; the row
+ * itself has only utility classes. If a future Open WebUI renames it, this
+ * stops matching and the controls simply reappear -- nothing breaks.
+ *
+ * Installed to open_webui/frontend/static/, not static/: Open WebUI empties
+ * static/ and recopies it from frontend/static/ on every start.
+ */
+
+/* the row: integrations menu, feature chips, tool count, terminal picker */
+#message-input-container div.overflow-x-auto:has(#integration-menu-button) {
+  display: none !important;
+}
+
+/* the thin divider that sat between the + button and that row */
+#message-input-container div:has(+ div.overflow-x-auto #integration-menu-button) {
+  display: none !important;
+}

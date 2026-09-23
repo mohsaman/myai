@@ -249,6 +249,21 @@ myai start                     # register an admin account in the browser first
 Or set them by hand in the UI — the script just automates what's described in
 [Configuration](#configuration).
 
+The chat model ends up with web search, image generation and the code interpreter on by
+default, and the MCP tools attached. None of that forces anything: under native function
+calling an enabled feature is *offered* to the model, which decides per message whether to
+use it — the way a desktop agent works, with no toggle to remember.
+
+That makes the row of tool controls in the message box redundant, so `ui/custom.css` hides
+it: the Integrations menu, the feature chips, the tool counter and the terminal picker. The
++ menu (files, images, screen capture), paste, the microphone and voice mode stay. Hiding
+changes nothing functional, because each chat's features are set from the model's defaults,
+not from the controls. The cost is the per-chat override: to keep a chat offline, say so in
+the message. `install.sh` puts the file in `~/.config/myai/`, and `myai start` copies it into
+Open WebUI's `frontend/static/` — not `static/`, which Open WebUI empties and recopies on
+every start — so it also survives a pip upgrade. To bring the controls back, delete
+`~/.config/myai/custom.css` and empty the copy in the package.
+
 ### 8. Size the context window, then check the install
 
 ```bash

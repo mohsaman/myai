@@ -242,8 +242,25 @@ sweep_residue() {
 }
 
 # ------------------------------------------------------------- commands -----
+# The minimal message box (ui/custom.css). It must live in the package's
+# frontend/static/, which Open WebUI copies into static/ on every start -- a
+# copy put in static/ itself is deleted at the next restart -- and a pip upgrade
+# replaces frontend/static/, so it is re-applied here rather than only at install.
+UI_CSS_SRC="${MYAI_UI_CSS:-$HOME/.config/myai/custom.css}"
+apply_ui_css() {
+  [ -f "$UI_CSS_SRC" ] || return 0
+  local pkg; pkg=$("$HOME/.open-webui/venv/bin/python" -c \
+    'import open_webui,os;print(os.path.dirname(open_webui.__file__))' 2>/dev/null) || return 0
+  local d
+  for d in "$pkg/frontend/static" "$pkg/static"; do
+    [ -d "$d" ] || continue
+    cmp -s "$UI_CSS_SRC" "$d/custom.css" || cp "$UI_CSS_SRC" "$d/custom.css"
+  done
+}
+
 cmd_start() {
   audit start
+  apply_ui_css
   printf '%sStarting local AI stack%s  %s(%s)%s\n' "$BOLD" "$OFF" "$DIM" "$OS" "$OFF"
 
   if svc_installed "$SVC_OLLAMA"; then
