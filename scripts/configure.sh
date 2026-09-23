@@ -179,7 +179,7 @@ seen = set()
 MODELS = []
 for _row in [
     (os.environ["CHAT_MODEL"],  "myai",        "",                               True,  False, False,
-     "Local AI, everything remains on your machine. Uses Qwen3.8-27B"),
+     "Local AI, everything remains on your machine.\nUses Qwen3.8-27B"),
     (os.environ["TASK_MODEL"],  "task model",  "background tasks",               False, False, True, ""),
     (os.environ["EMBED_MODEL"], "Nomic Embed", "embeddings \u2014 not for chat", False, False, True, ""),
 ]:
@@ -370,6 +370,14 @@ def telecom_prompt():
         else:
             raise
 try_("slash command /telecom", telecom_prompt)
+
+# 7. No prompt suggestions on the new-chat page. They are generic starter prompts
+#    ("Help me study vocabulary..."), not about this machine, and they compete with
+#    the one line that is. An empty list is not rendered at all -- the "Suggested"
+#    heading goes too. A model's own promptSuggestions would override this; none
+#    of ours set any.
+try_("prompt suggestions -> none",
+     lambda: call("/api/v1/configs/suggestions", {"suggestions": [], "i18n": {}}))
 PY
 
 echo
