@@ -135,6 +135,10 @@ generate-image -s 2048 "a red bicycle against a whitewashed wall"
 The speaker icon on any reply reads it aloud. The microphone dictates, via faster-whisper.
 Both local.
 
+If every reply is spoken even when you typed the question, **Settings → Interface →
+Auto-playback response** is on. It is a per-user toggle, off by default, and it reads all
+replies aloud regardless of how the question was asked; voice mode talks back without it.
+
 You do not pick a language. A router in front of the two speech engines reads the text,
 works out what language it is, and sends it to whichever engine can say it — Kokoro for
 the eight it does best, Piper for the other forty-five. Ask a question in Turkish and the
