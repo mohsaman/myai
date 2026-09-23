@@ -301,13 +301,18 @@ def behaviour(model_id):
     caps.update({f: True for f in AUTO_FEATURES}, builtin_tools=True)
     meta["capabilities"] = caps
     try:
-        tool_ids, terminal = attachable_tools()
+        tool_ids, _terminal = attachable_tools()
     except urllib.error.HTTPError:
-        tool_ids, terminal = [], None   # older Open WebUI: leave tools to the user
+        tool_ids = []   # older Open WebUI: leave tools to the user
     if tool_ids:
         meta["toolIds"] = sorted(set((meta.get("toolIds") or []) + tool_ids))
-    if terminal:
-        meta["terminalId"] = terminal
+    # Deliberately NOT meta.terminalId. Open WebUI treats a selected terminal and
+    # the code interpreter as mutually exclusive -- selecting one switches the
+    # other off (MessageInput.svelte) -- and a model default terminal is selected
+    # on every new chat, so it silently cost code execution. The code interpreter
+    # is the broader default: real Python, and it runs on this machine, so it can
+    # answer "how much disk is free" too. Drop any terminal an earlier run set.
+    meta.pop("terminalId", None)
     call(f"/api/v1/models/model/update?id={enc}",
          {"id": model_id, "name": cur["name"], "base_model_id": cur.get("base_model_id"),
           "params": params, "meta": meta})
