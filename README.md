@@ -1117,8 +1117,20 @@ The tunnel is dialled from this machine, which is the point of doing it this way
 - **It needs a key with no passphrase prompt.** launchd and systemd run ssh with no agent
   and no terminal, so `add` checks `ssh -o BatchMode=yes` first rather than installing a
   service that fails in a restart loop. It also refuses when port 11434 there is taken.
-- **It comes back on its own.** The service restarts ssh on exit and keepalives detect a
-  dead link within ~45 s; killing the ssh process measured a 3 s recovery.
+- **It comes back on its own** — if the far side lets it. The service restarts ssh on exit
+  and keepalives detect a dead link within ~45 s; killing the ssh process measured a 3 s
+  recovery. Sleep is different: this machine vanishes without closing, and the far sshd
+  keeps the dead session *and the forwarded port* until TCP gives up, hours later. Every
+  reconnect meanwhile fails `remote port forwarding failed` (2,889 of them, one night). The
+  fix is on the far host, once:
+
+  ```bash
+  printf 'ClientAliveInterval 15\nClientAliveCountMax 3\n' | sudo tee /etc/ssh/sshd_config.d/10-client-alive.conf
+  sudo sshd -t && sudo systemctl reload ssh
+  ```
+
+  With it, a frozen client's port came free in 63 s and the tunnel was back at 64 s.
+  `myai share add` and `test` check for this setting and print the fix when it is missing.
 
 Expect it to be slower than local use, not because of the tunnel but because OpenCode's
 system prompt is 3–6k tokens a turn; see [Context length](#context-length). Two more

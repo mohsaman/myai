@@ -818,6 +818,28 @@ share_probe() {  # share_probe <dest> — does Ollama answer on the far side of 
     "curl -fsS --max-time 5 http://127.0.0.1:11434/api/version" 2>/dev/null
 }
 
+share_alive_check() {  # warn when the far sshd never reaps dead clients
+  # A client that vanishes without closing -- this machine going to sleep --
+  # leaves its session, and the forwarded port, held on the far side. With
+  # ClientAliveInterval 0 (the OpenSSH default) that lasts until TCP gives up,
+  # hours, and every reconnect meanwhile fails "remote port forwarding
+  # failed". Measured: 2,889 failed restarts overnight; with 15 x 3 the port
+  # came free 63 s after the client froze. The sshd_config files are world
+  # readable, so no privilege is needed to check.
+  local v
+  v=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$1" \
+      "cat /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null" 2>/dev/null \
+      | awk 'tolower($1)=="clientaliveinterval"{print $2; exit}')
+  if [ -z "$v" ] || [ "$v" = 0 ]; then
+    bad "sshd on $1 never drops dead clients (ClientAliveInterval ${v:-unset})"
+    info "after this machine sleeps the tunnel cannot come back for hours; on $1 run:"
+    info "  printf 'ClientAliveInterval 15\\nClientAliveCountMax 3\\n' | sudo tee /etc/ssh/sshd_config.d/10-client-alive.conf"
+    info "  sudo sshd -t && sudo systemctl reload ssh"
+    return 1
+  fi
+  ok "sshd on $1 drops dead clients (ClientAliveInterval $v)"
+}
+
 cmd_share() {
   local sub="${1:-list}"; [ $# -gt 0 ] && shift
   case "$sub" in
@@ -887,6 +909,7 @@ WantedBy=default.target
 UNIT
         systemctl --user daemon-reload
       fi
+      share_alive_check "$dest"
       svc_up "$svc"
       local i; for i in 1 2 3 4 5 6 7 8 9 10; do share_probe "$dest" >/dev/null && break; sleep 1; done
       if share_probe "$dest" >/dev/null; then
@@ -912,7 +935,8 @@ UNIT
       local dest v; dest=$(share_dest "$name")
       share_running "$name" && ok "service running" || bad "service not running"
       if v=$(share_probe "$dest"); then ok "Ollama answers on $dest: $v"
-      else bad "Ollama does not answer on $dest at 127.0.0.1:11434"; return 1; fi
+      else bad "Ollama does not answer on $dest at 127.0.0.1:11434"; share_alive_check "$dest"; return 1; fi
+      share_alive_check "$dest"
       ;;
     *) bad "unknown: myai share $sub — list | add | remove | test"; return 1 ;;
   esac
