@@ -11,8 +11,8 @@
 # this. It did not work here, and it would not have helped Safari, a phone, or
 # any device that cannot set Chrome flags. A certificate does.
 #
-#   ./scripts/setup-tls.sh              # certificate for this machine's LAN IP
-#   ./scripts/setup-tls.sh 10.0.0.4     # or an address you name
+#   ./scripts/setup-tls.sh              # certificate for every current LAN address + <host>.local
+#   ./scripts/setup-tls.sh 10.0.0.4     # plus addresses you name (other networks)
 #
 # Open WebUI keeps its plain HTTP listener for loopback; this adds 8443 alongside.
 
@@ -30,14 +30,33 @@ for t in mkcert caddy; do
   command -v "$t" >/dev/null 2>&1 || { bad "$t not installed — brew install mkcert caddy"; exit 1; }
 done
 
-LAN_IP="${1:-}"
-if [ -z "$LAN_IP" ]; then
-  LAN_IP="$(ipconfig getifaddr en0 2>/dev/null \
-            || ip -4 addr show scope global 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)"
-fi
-[ -n "$LAN_IP" ] || { bad "could not determine a LAN address; pass one as an argument"; exit 1; }
+# Every address this machine answers on, not just one. A laptop moves between
+# networks; a certificate pinned to the address it had at setup time stops
+# matching the moment it joins another LAN, and HTTPS from other nodes fails
+# with a handshake error while loopback keeps working. The interface is not
+# always en0 either (a USB/Thunderbolt NIC comes up as en5 and so on).
+# Addresses named on the command line are added to the detected ones, so a
+# network the machine is not on right now (home while at the lab) can be
+# covered too.
+ADDRS=()
+while read -r a; do [ -n "$a" ] && ADDRS+=("$a"); done < <(
+  { { ifconfig 2>/dev/null || ip -4 addr show scope global 2>/dev/null; } \
+      | awk '/inet /{sub("/.*","",$2); if ($2 !~ /^127\./) print $2}'
+    for a in "$@"; do echo "$a"; done; } | sort -u)
+[ "${#ADDRS[@]}" -gt 0 ] || { bad "could not determine a LAN address; pass one as an argument"; exit 1; }
 
-printf '\033[1mTLS for Open WebUI\033[0m  %s:%s -> %s\n' "$LAN_IP" "$PORT" "$BACKEND"
+# The mDNS name survives address changes, so it is the one to bookmark.
+MDNS=""
+command -v scutil >/dev/null 2>&1 && MDNS="$(scutil --get LocalHostName 2>/dev/null).local"
+[ "$MDNS" = ".local" ] && MDNS=""
+[ -z "$MDNS" ] && command -v hostname >/dev/null 2>&1 && MDNS="$(hostname -s 2>/dev/null).local"
+
+NAMES=("${ADDRS[@]}")
+[ -n "$MDNS" ] && NAMES+=("$MDNS")
+NAMES+=(localhost 127.0.0.1 ::1)
+
+printf '\033[1mTLS for Open WebUI\033[0m  :%s -> %s\n' "$PORT" "$BACKEND"
+info "names: ${NAMES[*]}"
 
 # The CA has to be trusted by the system, and that step needs a password, so it
 # is left to the user rather than attempted and half-failed.
@@ -50,17 +69,16 @@ if ! security find-certificate -c "mkcert" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$TLS_DIR"
-( cd "$TLS_DIR" && mkcert "$LAN_IP" localhost 127.0.0.1 ::1 >/dev/null 2>&1 ) \
-  && ok "certificate for $LAN_IP, localhost, 127.0.0.1" \
+# Fixed file names, so the Caddyfile does not depend on which names were listed.
+CERT="$TLS_DIR/openwebui.pem"
+KEY="$TLS_DIR/openwebui-key.pem"
+mkcert -cert-file "$CERT" -key-file "$KEY" "${NAMES[@]}" >/dev/null 2>&1 \
+  && ok "certificate for ${NAMES[*]}" \
   || { bad "mkcert failed"; exit 1; }
-
-CERT="$(ls -t "$TLS_DIR"/*+*.pem 2>/dev/null | grep -v -- '-key' | head -1)"
-KEY="$(ls -t "$TLS_DIR"/*+*-key.pem 2>/dev/null | head -1)"
 [ -f "$CERT" ] && [ -f "$KEY" ] || { bad "certificate or key missing after generation"; exit 1; }
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 sed -e "s|__TLS_DIR__|$TLS_DIR|g" \
-    -e "s|__LAN_IP__|$LAN_IP|g" \
     -e "s|:8443|:$PORT|g" \
     -e "s|127\.0\.0\.1:8080|$BACKEND|g" \
     "$HERE/tls/Caddyfile.template" > "$TLS_DIR/Caddyfile"
@@ -70,6 +88,8 @@ caddy validate --config "$TLS_DIR/Caddyfile" >/dev/null 2>&1 \
   && ok "configuration valid" || { bad "caddy rejected the configuration"; exit 1; }
 
 printf '\n'
-info "start it:  caddy run --config $TLS_DIR/Caddyfile"
-info "then use:  https://$LAN_IP:$PORT"
+info "start it:  caddy run --config $TLS_DIR/Caddyfile   (or: myai restart)"
+[ -n "$MDNS" ] && info "then use:  https://$MDNS:$PORT"
+for a in "${ADDRS[@]}"; do info "      or:  https://$a:$PORT"; done
+info "on a new network, run this again so the certificate covers the new address"
 info "other devices must trust $(mkcert -CAROOT)/rootCA.pem before the microphone works there"

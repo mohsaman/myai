@@ -586,7 +586,12 @@ mkcert -install                 # once, asks for your password
 caddy run --config ~/.open-webui/tls/Caddyfile
 ```
 
-Then use `https://<your-lan-ip>:8443`. Open WebUI keeps its plain listener on 8080 for
+Then use `https://<hostname>.local:8443`, or any of the machine's addresses on port 8443.
+The certificate covers every address the machine has when the script runs, plus its
+`.local` name, which stays the same when the address changes. To cover a network the
+machine is not on right now (home while at the office), name that address too:
+`./scripts/setup-tls.sh 192.168.1.20`. After joining a network whose address is not
+covered, run the script again and restart Caddy. Open WebUI keeps its plain listener on 8080 for
 loopback, so nothing that already worked stops working.
 
 Chrome's `unsafely-treat-insecure-origin-as-secure` flag is supposed to solve this without

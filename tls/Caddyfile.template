@@ -14,8 +14,11 @@
 	auto_https off
 }
 
-https://__LAN_IP__:8443, https://localhost:8443 {
-	tls __TLS_DIR__/__LAN_IP__+3.pem __TLS_DIR__/__LAN_IP__+3-key.pem
+# Any host name on this port. Binding the site to one IP made every other
+# address -- including the one the machine gets on the next network -- fail
+# the handshake. Which names are valid is the certificate's job, not this one.
+https://:8443 {
+	tls __TLS_DIR__/openwebui.pem __TLS_DIR__/openwebui-key.pem
 
 	# Open WebUI uses websockets for streaming replies and for voice mode;
 	# reverse_proxy upgrades them by default, but the headers matter so the
