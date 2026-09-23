@@ -1088,6 +1088,37 @@ opencode models                # confirm the local model is registered
 The app is a window; the CLI is a pipe. `opencode run` composes into scripts and cron, which
 is the practical reason to keep both.
 
+### From another machine — model here, shell there
+
+OpenCode on another host can use this machine's model while its tools — shell commands,
+file edits — run on *that* host. Its bash tool executes wherever OpenCode runs; only the
+model calls cross the network. So the whole job is making Ollama reachable there:
+
+```bash
+myai share add devbox dev@10.0.0.7     # reverse SSH tunnel, as a LaunchAgent / systemd unit
+myai share test devbox                 # does the model answer on the far side?
+myai share list
+myai share remove devbox
+```
+
+On the other host, use the config above unchanged — `http://127.0.0.1:11434/v1` — because
+the tunnel puts Ollama on *that* host's loopback.
+
+The tunnel is dialled from this machine, which is the point of doing it this way round:
+
+- **Nothing listens here.** Ollama keeps its loopback bind and Remote Login can stay off.
+  Setting `OLLAMA_HOST=0.0.0.0` would reach the same goal by handing an unauthenticated
+  model server — pull, delete, run — to everyone on the LAN.
+- **Nothing listens there either**, beyond that host's `127.0.0.1`.
+- **It needs a key with no passphrase prompt.** launchd and systemd run ssh with no agent
+  and no terminal, so `add` checks `ssh -o BatchMode=yes` first rather than installing a
+  service that fails in a restart loop. It also refuses when port 11434 there is taken.
+- **It comes back on its own.** The service restarts ssh on exit and keepalives detect a
+  dead link within ~45 s; killing the ssh process measured a 3 s recovery.
+
+Expect it to be slower than local use, not because of the tunnel but because OpenCode's
+system prompt is 3–6k tokens a turn; see [Context length](#context-length).
+
 ### AGENTS.md — what the agent knows before you say anything
 
 `instructions` points at two files: a global one and a per-project one, stacked. The global

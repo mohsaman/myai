@@ -9,6 +9,7 @@
 #   myai doctor       check the install and say what to fix
 #   myai logs [comfy|kokoro|tts|jupyter|mcpo|terminal]
 #   myai backup [dir] archive chats/users/config
+#   myai share ...    lend Ollama to another host over a reverse SSH tunnel
 #
 # Works on macOS (launchd) and Linux (systemd user units).
 #
@@ -553,6 +554,10 @@ cmd_logs() {
     jupyter) d="$JUPYTER_LOG_DIR"; u="$SVC_JUPYTER" ;;
     mcp|mcpo) d="$MCPO_LOG_DIR";   u="$SVC_MCPO"   ;;
     term|terminal) d="$TERMINAL_LOG_DIR"; u="$SVC_TERMINAL" ;;
+    share-*)
+      # one tunnel per host; ssh only writes to stderr, and only when it fails
+      if [ "$OS" = linux ]; then u="$(share_svc "${1#share-}")"
+      else info "tailing $LOG_DIR/$1.log (ctrl-c to exit)"; tail -n 50 -f "$LOG_DIR/$1.log"; return; fi ;;
     *)      d="$LOG_DIR";        u="$SVC_WEBUI"  ;;
   esac
   if [ "$OS" = linux ]; then
@@ -760,6 +765,159 @@ PYSTATS
   ollama ps 2>/dev/null | sed 's/^/    /'
 }
 
+# ------------------------------------------------------------------ share ---
+# Lend this machine's Ollama to another host over a reverse SSH tunnel, so a
+# client there (opencode, goose, curl) can use the model while running its own
+# tools -- shell calls included -- on that host.
+#
+# The tunnel is dialled FROM here: nothing listens on this machine's LAN,
+# Remote Login can stay off, and Ollama keeps its loopback-only bind. The
+# remote end is bound to the remote host's 127.0.0.1 too, so the model is not
+# exposed on that host's network either. Ollama has no authentication; putting
+# it on 0.0.0.0 to achieve the same thing would hand it to everyone on the LAN.
+#
+# The target lives only in the service file (LaunchAgent / systemd user unit),
+# one per host, and the service restarts ssh whenever the connection drops.
+SHARE_PREFIX_MAC="com.myai.share"
+SHARE_PREFIX_LINUX="myai-share"
+
+share_svc() { [ "$OS" = mac ] && echo "$SHARE_PREFIX_MAC.$1" || echo "$SHARE_PREFIX_LINUX-$1"; }
+
+share_names() {
+  if [ "$OS" = mac ]; then
+    for f in "$AGENTS/$SHARE_PREFIX_MAC".*.plist; do
+      [ -f "$f" ] || continue; f="${f##*/}"; f="${f%.plist}"; echo "${f#$SHARE_PREFIX_MAC.}"
+    done
+  else
+    for f in "$HOME/.config/systemd/user/$SHARE_PREFIX_LINUX"-*.service; do
+      [ -f "$f" ] || continue; f="${f##*/}"; f="${f%.service}"; echo "${f#$SHARE_PREFIX_LINUX-}"
+    done
+  fi
+}
+
+share_dest() {  # the user@host a share points at, read back from its service file
+  if [ "$OS" = mac ]; then
+    plutil -extract ProgramArguments raw -o - "$AGENTS/$(share_svc "$1").plist" >/dev/null 2>&1 || return
+    local n; n=$(plutil -extract ProgramArguments raw -o - "$AGENTS/$(share_svc "$1").plist")
+    plutil -extract "ProgramArguments.$((n - 1))" raw -o - "$AGENTS/$(share_svc "$1").plist"
+  else
+    sed -n 's/^ExecStart=.* \([^ ]*\)$/\1/p' "$HOME/.config/systemd/user/$(share_svc "$1").service"
+  fi
+}
+
+share_running() {
+  if [ "$OS" = mac ]; then
+    launchctl print "$GUI/$(share_svc "$1")" 2>/dev/null | grep -q 'state = running'
+  else
+    systemctl --user is-active --quiet "$(share_svc "$1").service"
+  fi
+}
+
+share_probe() {  # share_probe <dest> — does Ollama answer on the far side of the tunnel?
+  ssh -o BatchMode=yes -o ConnectTimeout=5 "$1" \
+    "curl -fsS --max-time 5 http://127.0.0.1:11434/api/version" 2>/dev/null
+}
+
+cmd_share() {
+  local sub="${1:-list}"; [ $# -gt 0 ] && shift
+  case "$sub" in
+    list)
+      printf '%sOllama shared to%s\n' "$BOLD" "$OFF"
+      local any='' n
+      for n in $(share_names); do
+        any=1
+        if share_running "$n"; then ok "$(printf '%-8s %s  (tunnel up)' "$n" "$(share_dest "$n")")"
+        else bad "$(printf '%-8s %s  (tunnel down)' "$n" "$(share_dest "$n")")"; fi
+      done
+      [ -n "$any" ] || info "no hosts — myai share add <name> <user@host>"
+      ;;
+    add)
+      local name="${1:-}" dest="${2:-}"
+      if [ -z "$name" ] || [ -z "$dest" ] || ! [[ "$name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        bad "usage: myai share add <name> <user@host>   (name: letters, digits, - and _)"; return 1
+      fi
+      # launchd and systemd both run ssh with no agent and no terminal, so a
+      # key that needs a passphrase or a host key never accepted would make the
+      # service fail in a restart loop with nothing on screen. Prove it here.
+      if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$dest" true 2>/dev/null; then
+        bad "cannot reach $dest non-interactively — needs key auth without a passphrase prompt"
+        info "check with:  ssh -o BatchMode=yes $dest true"; return 1
+      fi
+      if ssh -o BatchMode=yes "$dest" "curl -fsS --max-time 2 http://127.0.0.1:11434/api/version" >/dev/null 2>&1 \
+         && ! share_running "$name"; then
+        bad "port 11434 on $dest is already taken (a local Ollama, or another tunnel)"; return 1
+      fi
+      local svc; svc=$(share_svc "$name")
+      local ssh_bin; ssh_bin=$(command -v ssh) || { bad "ssh not found"; return 1; }
+      local args=("$ssh_bin" -N -o BatchMode=yes -o ExitOnForwardFailure=yes
+                  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10
+                  -R 127.0.0.1:11434:127.0.0.1:11434 "$dest")
+      if [ "$OS" = mac ]; then
+        svc_down "$svc"
+        mkdir -p "$LOG_DIR"
+        {
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+          printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+          printf '<!-- written by myai share: this machine'"'"'s Ollama, reverse-tunnelled to %s -->\n' "$dest"
+          printf '<plist version="1.0">\n<dict>\n'
+          printf '  <key>Label</key><string>%s</string>\n' "$svc"
+          printf '  <key>ProgramArguments</key>\n  <array>\n'
+          local a; for a in "${args[@]}"; do printf '    <string>%s</string>\n' "$a"; done
+          printf '  </array>\n'
+          printf '  <key>RunAtLoad</key><true/>\n  <key>KeepAlive</key><true/>\n'
+          printf '  <key>ThrottleInterval</key><integer>10</integer>\n'
+          printf '  <key>StandardErrorPath</key><string>%s/share-%s.log</string>\n' "$LOG_DIR" "$name"
+          printf '</dict>\n</plist>\n'
+        } > "$AGENTS/$svc.plist"
+        plutil -lint "$AGENTS/$svc.plist" >/dev/null || { bad "generated plist is invalid"; return 1; }
+      else
+        mkdir -p "$HOME/.config/systemd/user"
+        cat > "$HOME/.config/systemd/user/$svc.service" <<UNIT
+[Unit]
+Description=myai: Ollama reverse-tunnelled to $dest
+After=network-online.target
+
+[Service]
+ExecStart=${args[*]}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+UNIT
+        systemctl --user daemon-reload
+      fi
+      svc_up "$svc"
+      local i; for i in 1 2 3 4 5 6 7 8 9 10; do share_probe "$dest" >/dev/null && break; sleep 1; done
+      if share_probe "$dest" >/dev/null; then
+        ok "$name: Ollama reachable on $dest at http://127.0.0.1:11434 (that host's loopback only)"
+        info "point clients there at http://127.0.0.1:11434/v1 (OpenAI) or :11434 (native)"
+      else
+        bad "$name: service installed but Ollama does not answer on $dest yet"
+        info "see: myai logs share-$name"
+      fi
+      ;;
+    remove)
+      local name="${1:-}"; [ -n "$name" ] || { bad "usage: myai share remove <name>"; return 1; }
+      local svc; svc=$(share_svc "$name")
+      svc_installed "$svc" || { bad "no share named $name"; return 1; }
+      svc_down "$svc"
+      if [ "$OS" = mac ]; then rm -f "$AGENTS/$svc.plist"
+      else rm -f "$HOME/.config/systemd/user/$svc.service"; systemctl --user daemon-reload; fi
+      ok "$name: tunnel stopped and removed"
+      ;;
+    test)
+      local name="${1:-}"; [ -n "$name" ] || { bad "usage: myai share test <name>"; return 1; }
+      svc_installed "$(share_svc "$name")" || { bad "no share named $name"; return 1; }
+      local dest v; dest=$(share_dest "$name")
+      share_running "$name" && ok "service running" || bad "service not running"
+      if v=$(share_probe "$dest"); then ok "Ollama answers on $dest: $v"
+      else bad "Ollama does not answer on $dest at 127.0.0.1:11434"; return 1; fi
+      ;;
+    *) bad "unknown: myai share $sub — list | add | remove | test"; return 1 ;;
+  esac
+}
+
 case "${1:-}" in
   start)   cmd_start ;;
   stop)    cmd_stop ;;
@@ -770,6 +928,7 @@ case "${1:-}" in
   doctor)  cmd_doctor ;;
   backup)  cmd_backup "${2:-}" ;;
   terminal) shift; cmd_terminal "$@" ;;
+  share)   shift; cmd_share "$@" ;;
   stats)   cmd_stats "${2:-}" ;;
   *)
     cat <<EOF
@@ -789,6 +948,7 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai logs jupyter tail Jupyter (code interpreter) logs
   myai logs mcpo    tail MCP tool server logs
   myai logs terminal tail terminal server logs
+  myai logs share-<name> tail an Ollama tunnel's log
   myai backup [dir] back up chats/users/config (default ~/myai-backups)
   myai stats [N]    timings for the last N generations (default 12)
 
@@ -796,6 +956,11 @@ ${BOLD}myai${OFF} — local AI stack (Ollama + ComfyUI + Kokoro + Open WebUI)
   myai terminal add <name> <[user@]host> [--port N] [--key PATH] [--jump host]
   myai terminal remove <name>
   myai terminal test <name>              check it is reachable over ssh
+
+  myai share list                        hosts this machine's Ollama is lent to
+  myai share add <name> <user@host>      reverse-tunnel Ollama to that host's loopback
+  myai share remove <name>
+  myai share test <name>                 check the model answers on the far side
 
 
 platform: $OS
