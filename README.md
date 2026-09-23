@@ -1228,27 +1228,6 @@ use, which keeps running after the TUI closes. `opencode service stop` ends it;
 with the session instead. On a machine that only borrows the model, a shell function that
 adds `--standalone` to the TUI and `run` keeps it from coming back.
 
-### A suggested next step after every reply
-
-`opencode/plugins/next-step.js` (installed to `~/.config/opencode/plugins/`, which OpenCode
-loads on start) asks the session's own model, after each reply, for the single most useful
-next message — and puts it in the input box. Enter sends it; clear the box to ignore it.
-
-- **It is prefilled text, not grey ghost text.** A plugin can append to the prompt but not
-  draw a placeholder, and it cannot see what the box holds. So a newer message in the
-  session cancels a pending suggestion (and aborts its request), a suggestion older than 90 s
-  is dropped, and subagent sessions are skipped. Typing in the seconds before one arrives
-  still gets it appended.
-- **Local providers only.** It uses the session's provider when that has a `baseURL` —
-  Ollama, llama.cpp, vLLM, a tunnel to one. Hosted APIs are skipped: re-sending context to a
-  paid endpoint for a hint is not a default to set silently.
-- **Cheap on purpose:** 48 tokens, reasoning off, 60 s timeout. On a server that answers one
-  request at a time it still queues ahead of your next message, which is the trade.
-- **Off:** `MYAI_NEXT_STEP=0` in the environment OpenCode starts from.
-
-Open WebUI has the real thing built in: follow-up generation places the first suggested
-follow-up as grey text in an empty message box, and Tab accepts it.
-
 ### AGENTS.md — what the agent knows before you say anything
 
 `instructions` points at two files: a global one and a per-project one, stacked. The global

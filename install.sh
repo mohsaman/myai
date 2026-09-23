@@ -57,15 +57,6 @@ if command -v opencode >/dev/null 2>&1; then
     install -m 0644 "$HERE/opencode/AGENTS.md.example" "$OC_DIR/AGENTS.md" \
       && ok "wrote $OC_DIR/AGENTS.md — add your own role and domain at the top"
   fi
-  # plugins are ours and versioned with the repo, so they are always refreshed;
-  # opencode loads everything in plugins/ on start, no config entry needed
-  if [ -d "$HERE/opencode/plugins" ]; then
-    mkdir -p "$OC_DIR/plugins"
-    for f in "$HERE"/opencode/plugins/*.js; do
-      [ -e "$f" ] || continue
-      install -m 0644 "$f" "$OC_DIR/plugins/" && ok "installed opencode plugin $(basename "$f")"
-    done
-  fi
 else
   info "opencode not installed — skip (brew install opencode)"
 fi
