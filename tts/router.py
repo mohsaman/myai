@@ -48,6 +48,8 @@ DEFAULT_LANG = os.environ.get("TTS_DEFAULT_LANG", "en")
 
 # Below this many Latin letters, detection is guesswork. See detect().
 MIN_DETECT_CHARS = 12
+# Confidence gap under which the top two languages count as a tie. See detect().
+TIE_MARGIN = 0.05
 
 app = FastAPI(title="myai tts router", version="2.0.0")
 
@@ -66,9 +68,13 @@ def detector():
         speakable = set(vc.supported())
         langs = [l for l in Language.all()
                  if l.iso_code_639_1.name.lower() in speakable]
-        _detector = (LanguageDetectorBuilder.from_languages(*langs)
-                     .with_low_accuracy_mode()
-                     .build())
+        # High-accuracy mode, not low: replies arrive one sentence at a time
+        # (Open WebUI splits on punctuation), and low-accuracy mode is trigram
+        # only, which is unreliable at that length. Measured on 20 short English
+        # sentences: low misread 7 (as nl, de, da, et, ro), high misread 1; on 10
+        # other languages low misread 2, high none. It cost ~6 MB and was faster
+        # per sentence, not slower.
+        _detector = LanguageDetectorBuilder.from_languages(*langs).build()
     return _detector
 
 
@@ -88,10 +94,20 @@ def detect(text: str) -> str:
     if script == "latin" and letters < MIN_DETECT_CHARS:
         return DEFAULT_LANG
 
-    lang = detector().detect_language_of(text)
-    if lang:
-        return lang.iso_code_639_1.name.lower()
-    return SCRIPT_HINT.get(script, DEFAULT_LANG)
+    ranked = detector().compute_language_confidence_values(text)
+    if not ranked:
+        return SCRIPT_HINT.get(script, DEFAULT_LANG)
+    top = ranked[0].language.iso_code_639_1.name.lower()
+    # A near tie that includes the default language goes to the default. "Run
+    # one agent at a time." scores Italian 0.08 against English 0.08: reading it
+    # in an Italian voice is the worse error, and the default is what the user
+    # set. Ties that do not involve the default (Persian 0.42 vs Urdu 0.37) are
+    # left to the detector.
+    if len(ranked) > 1 and ranked[0].value - ranked[1].value < TIE_MARGIN:
+        runner_up = ranked[1].language.iso_code_639_1.name.lower()
+        if DEFAULT_LANG in (top, runner_up):
+            return DEFAULT_LANG
+    return top
 
 
 # Only used for text too short to detect properly. Each maps a script to its
