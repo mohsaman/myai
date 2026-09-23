@@ -49,10 +49,11 @@ The thing worth knowing:
 not derived — the architecture implies 34 KiB, and trusting the derivation would set a
 window needing 30 GB. For longer documents, split them rather than hoping.
 
-**Turn thinking off for short prompts.** Asked to write one sentence greeting a colleague,
-the model spent 33 seconds and 300 tokens reasoning and returned **nothing at all**. The
-same prompt with `think: false` answered in 1.7 seconds and 10 tokens. That is not a tuning
-preference — with thinking on, short requests can come back empty.
+**Thinking costs a few seconds, no longer an empty answer.** Asked to write one sentence
+greeting a colleague, Qwen3.8 thinks for ~100 tokens and then answers correctly — about
+6 seconds; with `think: false` it takes 8 tokens. The older Qwen3.6 spent 33 seconds on the
+same prompt and returned nothing, which is why earlier notes treated thinking as a fault.
+On this model it is a speed trade, not a correctness one.
 
 ---
 
