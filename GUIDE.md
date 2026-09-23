@@ -35,7 +35,7 @@ This matters more than any other setting. The models are not interchangeable.
 
 | Entry | What it is |
 |---|---|
-| **Qwen3.8 27B** | the model. Chat, images, code, tool use — Apple Silicon build, ~17 tok/s |
+| **myai** | the model: Qwen3.8 27B (27.8B parameters, nvfp4, 18 GB). Chat, images, code, tool use — Apple Silicon build, ~17 tok/s |
 | **Telecom Expert** | a *preset*: the same weights with a system prompt that greps the spec corpus |
 | **Qwen3 Explorer** | a *preset*: same weights, prompted to take a position rather than survey |
 

@@ -58,7 +58,7 @@ Suggested models — swap freely, these are what the defaults assume:
 
 | Model | Size | Role | Measured (Apple M5, 32 GB) |
 |---|---|---|---|
-| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use, and background titling. Dense, 40k context | 17 tok/s |
+| `qwen3.8:27b-mlx` | 18 GB | Everything — chat, images, code, tool use, and background titling. Dense, 27.8B parameters, nvfp4, 40k context | 17 tok/s |
 | `nomic-embed-text` | 274 MB | Embeddings for document retrieval | — |
 | Qwen-Image-2.1 | 16.1 GB | Image generation — 3 files, research licence | — |
 
@@ -101,8 +101,9 @@ brew services start ollama
 > *"requires a newer version of Ollama"* and a 412, before downloading anything. The
 > `-mlx` build is compiled for Apple Silicon and is roughly twice the speed of the generic
 > one on an M-series Mac; on any other platform use `qwen3.8:27b`.
+> The tag says 27b; `ollama show` reports 27.8B parameters. Same model — pull by the tag.
 
-ollama pull qwen3.8:27b-mlx      # chat, images, code, tools — and background titling
+ollama pull qwen3.8:27b-mlx      # 27.8B parameters, nvfp4, 18 GB — chat, images, code, tools, titling
 ollama pull nomic-embed-text     # embeddings
 ```
 
