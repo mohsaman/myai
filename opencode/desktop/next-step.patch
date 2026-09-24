@@ -1,0 +1,284 @@
+diff --git a/packages/app/src/composer/adapter.ts b/packages/app/src/composer/adapter.ts
+index ffc5078..e2a1cd4 100644
+--- a/packages/app/src/composer/adapter.ts
++++ b/packages/app/src/composer/adapter.ts
+@@ -71,6 +71,9 @@ export type ComposerSession = {
+     shell: (input: Parameters<ServerSDK["api"]["session"]["shell"]>[0]) => Promise<unknown>
+     switchAgent: (input: Parameters<ServerSDK["api"]["session"]["switchAgent"]>[0]) => Promise<unknown>
+     switchModel: (input: Parameters<ServerSDK["api"]["session"]["switchModel"]>[0]) => Promise<unknown>
++    generate: (
++      input: Parameters<ServerSDK["api"]["session"]["generate"]>[0],
++    ) => ReturnType<ServerSDK["api"]["session"]["generate"]>
+   }
+   data: {
+     location: { command: Pick<Data["location"]["command"], "list"> }
+diff --git a/packages/app/src/composer/editor/interaction.ts b/packages/app/src/composer/editor/interaction.ts
+index a332e3e..246cad0 100644
+--- a/packages/app/src/composer/editor/interaction.ts
++++ b/packages/app/src/composer/editor/interaction.ts
+@@ -32,6 +32,11 @@ export type ComposerSelectControl = {
+ export type ComposerEditorView = {
+   draftOnly?: boolean
+   placeholder?: Accessor<string>
++  // Suggested next message shown as the placeholder; Tab accepts it into the draft.
++  ghost?: {
++    text: Accessor<string | undefined>
++    accept: () => boolean
++  }
+   add?: {
+     onAttach: () => void
+   }
+@@ -217,6 +222,21 @@ export function createComposerEditor(input: {
+       )
+     }
+     if (handled) return true
++    // After the suggestion popover had its turn, so Tab still completes / and @.
++    if (
++      event.key === "Tab" &&
++      !event.shiftKey &&
++      !event.altKey &&
++      !event.ctrlKey &&
++      !event.metaKey &&
++      !event.isComposing &&
++      state.mode === "normal" &&
++      input.view.ghost?.text() &&
++      input.view.ghost.accept()
++    ) {
++      event.preventDefault()
++      return true
++    }
+     if (event.key === "Escape" && input.view.submit.queue?.editing()) {
+       event.preventDefault()
+       input.view.submit.queue.cancelEdit()
+diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
+index 1faa70c..386482a 100644
+--- a/packages/app/src/composer/model.ts
++++ b/packages/app/src/composer/model.ts
+@@ -22,6 +22,7 @@ import { isAttachment } from "./prompt-parts"
+ import type { PromptHistoryComment } from "./history/entry"
+ import { createComposerHistory } from "./history/store"
+ import { composerPlaceholder } from "./placeholder"
++import { createComposerNextStep } from "./next-step"
+ import { createComposerSubmit } from "./submit"
+ import { useAttachmentDestination } from "./attachments/destination"
+ import { parseClientSlashCommand } from "./client-slash-command"
+@@ -87,7 +88,13 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+     return text.trim().length === 0 && attachments().length === 0 && commentCount() === 0
+   })
+   const stopping = createMemo(() => adapter.working() && blank())
++  const nextStep = createComposerNextStep({
++    adapter,
++    blank,
++    data,
++  })
+   const placeholder = () =>
++    nextStep.text() ??
+     composerPlaceholder(
+       mode(),
+       (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
+@@ -373,6 +380,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+     },
+     view: {
+       placeholder,
++      ghost: nextStep,
+       get agent() {
+         const agents = adapter.controls().agents
+         return agents.visible && agents.options.length > 0
+diff --git a/packages/app/src/composer/next-step.test.ts b/packages/app/src/composer/next-step.test.ts
+new file mode 100644
+index 0000000..288d7db
+--- /dev/null
++++ b/packages/app/src/composer/next-step.test.ts
+@@ -0,0 +1,27 @@
++import { describe, expect, test } from "bun:test"
++import { cleanNextStep } from "./next-step"
++
++describe("Composer next-step suggestion", () => {
++  test("keeps a plain one-line suggestion", () => {
++    expect(cleanNextStep("Run the tests for the parser")).toBe("Run the tests for the parser")
++  })
++
++  test("takes the first non-empty line and strips surrounding quotes", () => {
++    expect(cleanNextStep('\n  "Add a test for --dry-run"\nbecause it is untested')).toBe("Add a test for --dry-run")
++  })
++
++  test("drops a reasoning block", () => {
++    expect(cleanNextStep("<think>maybe tests</think>\nCommit the change")).toBe("Commit the change")
++  })
++
++  test("treats NONE, empty and missing text as no suggestion", () => {
++    expect(cleanNextStep("NONE")).toBeUndefined()
++    expect(cleanNextStep("none.")).toBeUndefined()
++    expect(cleanNextStep("   ")).toBeUndefined()
++    expect(cleanNextStep(undefined)).toBeUndefined()
++  })
++
++  test("rejects an overlong line rather than truncating it", () => {
++    expect(cleanNextStep("x".repeat(161))).toBeUndefined()
++  })
++})
+diff --git a/packages/app/src/composer/next-step.ts b/packages/app/src/composer/next-step.ts
+new file mode 100644
+index 0000000..44c71f1
+--- /dev/null
++++ b/packages/app/src/composer/next-step.ts
+@@ -0,0 +1,107 @@
++import { createSignal, onCleanup, type Accessor } from "solid-js"
++import type { Data } from "@opencode/client/solid"
++import type { ComposerAdapter } from "./adapter"
++
++// Suggested next step: after a run in this session succeeds, ask the session's
++// model for the single most useful next message, and offer it as ghost text in
++// the empty composer. Tab accepts it into the draft; typing replaces it.
++//
++// The suggestion comes from session.generate -- the one-shot call the TUI /btw
++// command uses -- which answers from the session's context without adding
++// anything to the conversation.
++
++// session.generate exposes the session's tools but runs no tool loop, so the
++// instructions rule tool calls out. They ask for a suggestion every time: an
++// opt-out ("reply NONE if nothing follows") is taken by small models even when a
++// useful follow-up exists. NONE is still honoured if it appears.
++const INSTRUCTIONS = [
++  "Propose the user's single most useful NEXT message in this conversation --",
++  "a follow-up question, a check, or the obvious next task. Always propose one.",
++  "Reply with ONLY that message, exactly as the user would type it: specific to",
++  "what just happened, under 15 words. No quotes, no preamble, no explanation.",
++  "Do not call any tools and do not take any actions.",
++].join(" ")
++
++const MAX_CHARS = 160
++
++export function cleanNextStep(raw: string | undefined) {
++  const line = (raw ?? "")
++    .replace(/<think>[\s\S]*?<\/think>/g, "")
++    .split("\n")
++    .map((item) => item.trim())
++    .find(Boolean)
++    ?.replace(/^["'`“”]+|["'`“”]+$/g, "")
++    .trim()
++  if (!line || /^none\.?$/i.test(line) || line.length > MAX_CHARS) return undefined
++  return line
++}
++
++// Opt-in trace for diagnosing: localStorage.setItem("opencode.nextStep.debug", "1")
++function trace(message: string) {
++  try {
++    if (globalThis.localStorage?.getItem("opencode.nextStep.debug") === "1") console.info(`[next-step] ${message}`)
++  } catch {}
++}
++
++export type ComposerNextStep = {
++  // The suggestion to show, only while the draft is empty and nothing is running.
++  text: Accessor<string | undefined>
++  // Moves the suggestion into the draft. False when there is nothing to accept.
++  accept: () => boolean
++}
++
++export function createComposerNextStep(input: {
++  adapter: ComposerAdapter
++  blank: Accessor<boolean>
++  data: Pick<Data, "on" | "session">
++}): ComposerNextStep {
++  const adapter = input.adapter
++  const [suggestion, setSuggestion] = createSignal<string>()
++  if (adapter.kind !== "active-session") return { text: () => undefined, accept: () => false }
++
++  // Driven by the server's lifecycle events for this session -- the same events
++  // the notifications use -- rather than by the working flag: a run's outcome is
++  // only settled when execution.succeeded arrives. Every start bumps the epoch,
++  // so a generation that returns after the next run began is dropped.
++  let epoch = 0
++  const sessionID = () => adapter.session().id
++
++  const started = input.data.on("session.execution.started", (event) => {
++    if (event.data.sessionID !== sessionID()) return
++    epoch++
++    setSuggestion(undefined)
++  })
++  const succeeded = input.data.on("session.execution.succeeded", (event) => {
++    const id = event.data.sessionID
++    if (id !== sessionID()) return
++    if (input.data.session.get(id)?.parentID !== undefined) return trace(`${id} skipped: subagent`)
++    const mine = ++epoch
++    const begun = Date.now()
++    trace(`${id} run succeeded; generating`)
++    void adapter
++      .session()
++      .api.generate({ sessionID: id, prompt: INSTRUCTIONS })
++      .then((result) => {
++        if (mine !== epoch) return trace(`${id} dropped: superseded`)
++        const text = cleanNextStep(result?.text)
++        trace(`${id} generated in ${Date.now() - begun} ms: ${JSON.stringify(result?.text)} -> ${JSON.stringify(text)}`)
++        if (text) setSuggestion(text)
++      })
++      .catch((cause: unknown) => trace(`${id} generate failed: ${String(cause)}`))
++  })
++  onCleanup(() => {
++    started()
++    succeeded()
++  })
++
++  return {
++    text: () => (input.blank() && !adapter.working() ? suggestion() : undefined),
++    accept: () => {
++      const text = suggestion()
++      if (!text || !input.blank()) return false
++      adapter.state.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
++      setSuggestion(undefined)
++      return true
++    },
++  }
++}
+diff --git a/packages/app/src/composer/submit.test.ts b/packages/app/src/composer/submit.test.ts
+index 355cbcd..5f9de8f 100644
+--- a/packages/app/src/composer/submit.test.ts
++++ b/packages/app/src/composer/submit.test.ts
+@@ -106,6 +106,7 @@ function session(input: {
+         }),
+       shell: input.shell ?? (async () => undefined),
+       command: input.command ?? (async () => undefined),
++      generate: async () => ({ text: "" }),
+     },
+     data: {
+       location: { command: { list: () => [] } },
+diff --git a/packages/app/src/new-session/composer-adapter.ts b/packages/app/src/new-session/composer-adapter.ts
+index 0961cbc..af1cc4b 100644
+--- a/packages/app/src/new-session/composer-adapter.ts
++++ b/packages/app/src/new-session/composer-adapter.ts
+@@ -147,6 +147,7 @@ export function createNewSessionComposerAdapter(props: {
+             shell: (input) => afterCreation(() => serverSDK.api.session.shell(input)),
+             switchAgent: (input) => afterCreation(() => serverSDK.api.session.switchAgent(input)),
+             switchModel: (input) => afterCreation(() => serverSDK.api.session.switchModel(input)),
++            generate: (input) => afterCreation(() => serverSDK.api.session.generate(input)),
+           },
+           data: {
+             location: data.location,
+diff --git a/packages/desktop/electron.vite.config.ts b/packages/desktop/electron.vite.config.ts
+index 2db653a..7fe381d 100644
+--- a/packages/desktop/electron.vite.config.ts
++++ b/packages/desktop/electron.vite.config.ts
+@@ -59,6 +59,7 @@ export default defineConfig(({ command }) => ({
+     define: {
+       // Local renderer/server mode still uses the dev application identity and updater policy.
+       "import.meta.env.OPENCODE_CHANNEL": JSON.stringify(channel === "local" ? "dev" : channel),
++      "import.meta.env.OPENCODE_DISABLE_UPDATER": JSON.stringify(process.env.OPENCODE_DISABLE_UPDATER ?? ""),
+     },
+     build: {
+       minify: command === "build",
+diff --git a/packages/desktop/src/main/constants.ts b/packages/desktop/src/main/constants.ts
+index bc33c5b..6acddf0 100644
+--- a/packages/desktop/src/main/constants.ts
++++ b/packages/desktop/src/main/constants.ts
+@@ -5,7 +5,10 @@ const raw = import.meta.env.OPENCODE_CHANNEL
+ export const CHANNEL: Channel = raw === "local" || raw === "dev" || raw === "beta" || raw === "prod" ? raw : "dev"
+ export const VERSION = app.isPackaged ? app.getVersion() : (process.env.OPENCODE_VERSION ?? app.getVersion())
+ 
+-export const UPDATER_ENABLED = app.isPackaged && CHANNEL !== "dev"
++// OPENCODE_DISABLE_UPDATER=1 at build time: a locally built app must not update
++// itself to the stock release, which would silently drop local changes.
++export const UPDATER_ENABLED =
++  app.isPackaged && CHANNEL !== "dev" && import.meta.env.OPENCODE_DISABLE_UPDATER !== "1"
+ 
+ const appNames: Record<string, string> = {
+   dev: "OpenCode Dev",

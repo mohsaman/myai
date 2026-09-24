@@ -1262,6 +1262,38 @@ and follows two built-in plugins: `/btw` for the generation, `notifications` for
 Open WebUI has the equivalent built in: follow-up generation shows the first suggested
 follow-up as grey text in the empty message box, and Tab accepts it.
 
+### The same in the desktop app: a patched build
+
+The desktop app has no plugin entry for its UI, so the plugin cannot reach it. Instead
+`scripts/build-opencode-desktop.sh` builds the app from OpenCode's own source with
+`opencode/desktop/next-step.patch` applied, and installs it in place of the stock app. There
+the composer is ours, so it is the real thing: after a run succeeds the suggestion appears
+as ghost text in the empty box, **Tab puts it in the input**, Enter sends, typing replaces it.
+
+```bash
+brew install bun                           # once; the version the OpenCode repo pins
+./scripts/build-opencode-desktop.sh        # the installed version, or pass one: 2.0.16
+```
+
+The patch is small and uses the app's existing seams: `session.generate` (as `/btw`) for the
+suggestion, the composer's own placeholder for the ghost text, and a Tab handler that runs
+only after the `/` and `@` popover has had the key. The script:
+
+- clones the release tag, applies the patch — and **stops** if it no longer applies,
+- runs the app's typecheck and unit tests, and **stops** on any failure,
+- bundles the **official, unmodified CLI** for that version from npm
+  (`@opencode/cli-darwin-arm64`, what OpenCode's own build uses; identical code to the CLI in
+  the stock app once signatures are stripped),
+- builds on the prod channel, so it is the same app id with the same data and settings,
+- compiles the updater out: otherwise the first update would replace it with the stock app
+  and silently drop the change,
+- signs ad hoc, for this Mac only, and keeps the previous app as a backup.
+
+The trade: no auto-update. **Rerun the script for each OpenCode release.** If the release
+changed the composer, the patch stops applying and the script says so instead of shipping a
+half-working build. To go back to stock: quit OpenCode, delete `/Applications/OpenCode.app`,
+reinstall from opencode.ai.
+
 ### AGENTS.md — what the agent knows before you say anything
 
 `instructions` points at two files: a global one and a per-project one, stacked. The global
